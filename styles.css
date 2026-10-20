@@ -11,6 +11,8 @@
   --accent-soft: rgba(61, 90, 254, 0.1);
   --success: #22a06b;
   --danger: #e5484d;
+  --tint-bg: #eef3f1;
+  --tint-line: #6f9e95;
 
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -32,6 +34,8 @@
     --accent: #7c8fff;
     --accent-soft: rgba(124, 143, 255, 0.12);
   --danger: #ff6369;
+  --tint-bg: #131817;
+  --tint-line: #4d7f76;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
   }
 }
@@ -46,6 +50,8 @@
   --accent: #7c8fff;
   --accent-soft: rgba(124, 143, 255, 0.12);
   --danger: #ff6369;
+  --tint-bg: #131817;
+  --tint-line: #4d7f76;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
@@ -127,7 +133,24 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .nav__menu { display: none; }
 
 /* ============ HERO ============ */
-.hero { padding: 96px 0 112px; }
+.hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  padding: 96px 0 112px;
+  background: linear-gradient(to bottom, var(--tint-bg) 70%, var(--bg));
+}
+.hero__inner { position: relative; z-index: 1; }
+.hero__bg {
+  position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  /* fade traces out behind the text and toward the bottom edge */
+  -webkit-mask-image: radial-gradient(ellipse 75% 85% at 72% 45%, #000 30%, transparent 85%);
+          mask-image: radial-gradient(ellipse 75% 85% at 72% 45%, #000 30%, transparent 85%);
+}
+.pcb-traces polyline { fill: none; stroke: var(--tint-line); stroke-width: 2; stroke-linejoin: round; opacity: 0.4; }
+.pcb-vias circle, .pcb-vias rect { fill: var(--tint-bg); stroke: var(--tint-line); stroke-width: 2; opacity: 0.55; }
+.pcb-chips rect { fill: var(--tint-bg); stroke: var(--tint-line); stroke-width: 2; opacity: 0.6; }
+.pcb-dot { fill: var(--tint-line); opacity: 0.6; }
+.status { background: var(--bg-elev); }
 .hero__inner { display: grid; grid-template-columns: 1.6fr 1fr; gap: 64px; align-items: center; }
 .status {
   display: inline-flex; align-items: center; gap: 8px;
@@ -255,6 +278,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 /* Project art (inline SVG, themed by tokens) */
 .art-bg { color: var(--text-faint); opacity: 0.35; }
 .art-contour, .art-grid, .art-spark-line { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.art-contour--major { stroke-width: 2.2; }
+.art-river { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; opacity: 0.08; }
+.art-plot { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 5 5; }
 .art-fleet { color: var(--text-muted); opacity: 0.4; }
 .art-link { fill: none; stroke: var(--accent); stroke-width: 2; opacity: 0.55; }
 .art-link.art-neutral { stroke: var(--text-faint); opacity: 0.8; }
