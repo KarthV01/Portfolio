@@ -157,16 +157,28 @@
         <div class="projects">
           <article class="card card--featured">
             <div class="card__media">
+              <div class="metric"><strong>Red vs Blue</strong><span>agents that learn through self-play</span></div>
+            </div>
+            <div class="card__body">
+              <p class="card__kicker">Featured · Reinforcement Learning</p>
+              <h3>Nemesis</h3>
+              <p>An adversarial multi-agent reinforcement learning framework for cybersecurity. Autonomous attacker and defender agents train against each other through offensive and defensive self-play, so each side's strategies evolve in response to the other's instead of against a fixed script.</p>
+              <ul class="tags"><li>Python</li><li>Multi-Agent RL</li><li>Self-Play</li><li>Cybersecurity</li></ul>
+              <div class="card__links">
+                <a href="https://github.com/KarthV01/Nemesis" target="_blank" rel="noopener">Source ↗</a>
+              </div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card__media">
               <div class="metric"><strong>46</strong><span>board profiles across 3 hardware tiers</span></div>
             </div>
             <div class="card__body">
-              <p class="card__kicker">Featured · Distributed Systems</p>
+              <p class="card__kicker">Distributed Systems</p>
               <h3>Stratos</h3>
-              <p>A distributed edge-computing platform for drone fleet mapping. It dispatches capacity-aware tasks over Redis Streams with leases and stale-task reclamation, ingests MAVLink telemetry from PX4/ArduPilot, and stitches multi-drone surveys into GeoTIFF maps through restart-resilient NodeODM jobs.</p>
-              <ul class="tags"><li>FastAPI</li><li>Go</li><li>Redis Streams</li><li>MQTT</li><li>gRPC</li><li>MAVLink</li></ul>
-              <div class="card__links">
-                <a href="https://github.com/KarthV01/Stratos" target="_blank" rel="noopener">Source ↗</a>
-              </div>
+              <p>A distributed edge-computing platform for drone fleet mapping. It dispatches capacity-aware tasks over Redis Streams with leases and stale-task reclamation, and stitches multi-drone surveys into GeoTIFF maps through restart-resilient NodeODM jobs.</p>
+              <ul class="tags"><li>FastAPI</li><li>Go</li><li>Redis Streams</li><li>MQTT</li><li>gRPC</li></ul>
+              <div class="card__links"><a href="https://github.com/KarthV01/Stratos" target="_blank" rel="noopener">Source ↗</a></div>
             </div>
           </article>
           <article class="card">
@@ -203,18 +215,6 @@
               <p>A prediction-market terminal that compares contracts across venues, detects arbitrage, and coordinates multi-leg orders. Idempotency keys, per-leg state, and live quote revalidation filter out false opportunities.</p>
               <ul class="tags"><li>Python</li><li>WebSockets</li><li>REST</li></ul>
               <div class="card__links"><span class="muted">Private repo</span></div>
-            </div>
-          </article>
-          <article class="card">
-            <div class="card__media">
-              <div class="metric"><strong>OCR + RAG</strong><span>cited answers from mortgage PDFs</span></div>
-            </div>
-            <div class="card__body">
-              <p class="card__kicker">Document AI</p>
-              <h3>Outamation</h3>
-              <p>A local pipeline that turns long, mixed-format mortgage packets into searchable, cited answers. It routes pages between native extraction and OCR, then uses page-aware chunking, FAISS retrieval, and structured field extraction.</p>
-              <ul class="tags"><li>Python</li><li>PaddleOCR</li><li>LlamaIndex</li><li>FAISS</li></ul>
-              <div class="card__links"><a href="https://github.com/KarthV01/Outamation" target="_blank" rel="noopener">Source ↗</a></div>
             </div>
           </article>
         </div>
