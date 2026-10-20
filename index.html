@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Karthik Voruganti — Portfolio</title>
+  <meta name="description" content="Karthik Voruganti — ECE student at Rutgers building applied AI and distributed systems." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Apply saved theme before paint to avoid a flash
+    try {
+      const t = localStorage.getItem("theme");
+      if (t) document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!-- ============ NAV ============ -->
+  <header class="nav" id="top">
+    <div class="container nav__inner">
+      <a href="#top" class="nav__logo">KV<span>.</span></a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#about">About</a>
+        <a href="#experience">Experience</a>
+        <a href="#projects">Projects</a>
+        <a href="#skills">Skills</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <div class="nav__actions">
+        <button class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a href="Karthik_Resume.pdf" class="btn btn--small" target="_blank" rel="noopener">Résumé</a>
+        <button class="icon-btn nav__menu" id="menu-toggle" aria-label="Open menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="container hero__inner">
+        <div class="hero__text">
+          <p class="status"><span class="status__dot"></span>Open to opportunities</p>
+          <h1 class="hero__title">
+            Hi, I'm Karthik.<br />
+            I build <span class="accent">reliable systems</span> for applied AI.
+          </h1>
+          <p class="hero__lead">
+            Electrical &amp; Computer Engineering student at Rutgers, minoring in Math and CS.
+            I've built prediction-market infrastructure at Mind360 AI and LLM evaluation
+            benchmarks at Aviro AI (YC S25), and I like turning ambitious ideas into
+            systems that hold up when things fail.
+          </p>
+          <div class="hero__cta">
+            <a href="#projects" class="btn">View my work</a>
+            <a href="#contact" class="btn btn--ghost">Get in touch</a>
+          </div>
+          <ul class="socials" aria-label="Social links">
+            <li><a href="https://github.com/KarthV01" target="_blank" rel="noopener" aria-label="GitHub"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg></a></li>
+            <li><a href="https://www.linkedin.com/in/karthik-voruganti-05b279326/" target="_blank" rel="noopener" aria-label="LinkedIn"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20.4 20.5h-3.6v-5.6c0-1.3 0-3-1.8-3s-2.1 1.4-2.1 2.9v5.7H9.4V9h3.4v1.6c.5-.9 1.6-1.8 3.4-1.8 3.6 0 4.3 2.4 4.3 5.5v6.2zM5.3 7.4a2.1 2.1 0 1 1 0-4.2 2.1 2.1 0 0 1 0 4.2zM7.1 20.5H3.6V9h3.5v11.5zM22.2 0H1.8C.8 0 0 .8 0 1.7v20.6c0 .9.8 1.7 1.8 1.7h20.4c1 0 1.8-.8 1.8-1.7V1.7C24 .8 23.2 0 22.2 0z"/></svg></a></li>
+            <li><a href="mailto:karthik.v.voruganti@gmail.com" aria-label="Email"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></a></li>
+          </ul>
+        </div>
+
+        <div class="hero__photo" aria-hidden="true">
+          <div class="photo-frame">
+            <span>KV</span>
+            <small>Add photo</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ABOUT ============ -->
+    <section class="section" id="about">
+      <div class="container">
+        <div class="section__head">
+          <span class="section__num">01</span>
+          <h2 class="section__title">About</h2>
+        </div>
+        <div class="about">
+          <div class="about__text">
+            <p>
+              I like building software where ambitious ideas meet real systems: applied AI,
+              distributed infrastructure, and products that make complicated workflows feel simple.
+              Most of what I build is about correctness under pressure, like rejecting stale prices
+              before a trade, recovering work across flaky connections, or blocking an AI draft
+              that can't cite its sources.
+            </p>
+            <p>
+              Right now I'm exploring how intelligent systems can read messy documents, coordinate
+              work reliably, and move value safely. I learn by building, breaking, and making the
+              next version better.
+            </p>
+          </div>
+          <dl class="facts">
+            <div><dt>School</dt><dd>Rutgers, New Brunswick</dd></div>
+            <div><dt>Degree</dt><dd>B.S. ECE, May 2028</dd></div>
+            <div><dt>Minors</dt><dd>Mathematics, CS</dd></div>
+            <div><dt>Focus</dt><dd>Applied AI, Distributed Systems</dd></div>
+            <div><dt>Exploring</dt><dd>Adversarial multi-agent RL</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ EXPERIENCE ============ -->
+    <section class="section" id="experience">
+      <div class="container">
+        <div class="section__head">
+          <span class="section__num">02</span>
+          <h2 class="section__title">Experience</h2>
+        </div>
+        <ol class="timeline">
+          <li class="timeline__item">
+            <div class="timeline__date">May 2026 — Aug 2026<span>Sunnyvale, CA</span></div>
+            <div class="timeline__body">
+              <h3>Software Engineer <span>· Mind360 AI</span></h3>
+              <ul class="bullets">
+                <li>Integrated 8 prediction-market venues using concurrent API requests, rate limiting, and live order-book validation to handle venue-specific limits and reject stale prices before execution.</li>
+                <li>Extended a Python adversarial-testing engine with checkpoint recovery and SBOM/policy validation to resume interrupted runs, skip completed tests, and prevent incompatible results from merging.</li>
+                <li>Built an on-screen text capture and simplification workflow with Electron, PaddleOCR, and Spring Boot, handling failures and edge cases across 3 model providers (Gemini, Groq, OpenRouter).</li>
+              </ul>
+              <ul class="tags"><li>Python</li><li>Electron</li><li>Spring Boot</li><li>PaddleOCR</li><li>REST</li></ul>
+            </div>
+          </li>
+          <li class="timeline__item">
+            <div class="timeline__date">Jan 2026 — May 2026<span>San Francisco, CA</span></div>
+            <div class="timeline__body">
+              <h3>Machine Learning Research Intern <span>· Aviro AI (YC S25)</span></h3>
+              <ul class="bullets">
+                <li>Co-developed 3 simulated enterprise environments and formulated 30 benchmark tasks to evaluate multi-step search, evidence retrieval, and cross-document reasoning.</li>
+                <li>Benchmarked 8 frontier models and analyzed tool-call traces against source evidence to isolate retrieval failures, fabricated values, unsupported citations, and failures to abstain.</li>
+                <li>Created 30 training tasks for reinforcement training of GPT-OSS-120b to engineer Ebla-1, contributing to a 7,200-rollout run through job execution, reward evaluation, and checkpoint analysis.</li>
+              </ul>
+              <ul class="tags"><li>LLM Evaluation</li><li>Reinforcement Learning</li><li>Benchmarks</li><li>Python</li></ul>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ PROJECTS ============ -->
+    <section class="section" id="projects">
+      <div class="container">
+        <div class="section__head">
+          <span class="section__num">03</span>
+          <h2 class="section__title">Selected Projects</h2>
+        </div>
+        <div class="projects">
+          <article class="card card--featured">
+            <div class="card__media">
+              <div class="metric"><strong>46</strong><span>board profiles across 3 hardware tiers</span></div>
+            </div>
+            <div class="card__body">
+              <p class="card__kicker">Featured · Distributed Systems</p>
+              <h3>Stratos</h3>
+              <p>A distributed edge-computing platform for drone fleet mapping. It dispatches capacity-aware tasks over Redis Streams with leases and stale-task reclamation, ingests MAVLink telemetry from PX4/ArduPilot, and stitches multi-drone surveys into GeoTIFF maps through restart-resilient NodeODM jobs.</p>
+              <ul class="tags"><li>FastAPI</li><li>Go</li><li>Redis Streams</li><li>MQTT</li><li>gRPC</li><li>MAVLink</li></ul>
+              <div class="card__links">
+                <a href="https://github.com/KarthV01/Stratos" target="_blank" rel="noopener">Source ↗</a>
+              </div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card__media">
+              <div class="metric"><strong>85.7%</strong><span>retrieval recall on a 20-program benchmark</span></div>
+            </div>
+            <div class="card__body">
+              <p class="card__kicker">Agents · AWS</p>
+              <h3>Kairos</h3>
+              <p>A funding-discovery platform for student founders. Amazon Bedrock agents find relevant programs and draft source-grounded applications, and a fail-closed validation gate blocks drafts that can't be backed by their sources.</p>
+              <ul class="tags"><li>FastAPI</li><li>Amazon Bedrock</li><li>Strands Agents</li></ul>
+              <div class="card__links"><span class="muted">Private repo</span></div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card__media">
+              <div class="metric"><strong>4</strong><span>escrow-backed payment milestones</span></div>
+            </div>
+            <div class="card__body">
+              <p class="card__kicker">Web3 · Full-stack</p>
+              <h3>Fiducia</h3>
+              <p>Creator sponsorships with verified milestones and USDC escrow on Base. OAuth metric adapters cover 4 social platforms, and Solidity contracts enforce payout caps, reject duplicate releases, and refund unreleased balances.</p>
+              <ul class="tags"><li>React</li><li>Fastify</li><li>Prisma</li><li>Solidity</li></ul>
+              <div class="card__links"><a href="https://github.com/KarthV01/Fiducia" target="_blank" rel="noopener">Source ↗</a></div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card__media">
+              <div class="metric"><strong>8</strong><span>prediction-market venues in one terminal</span></div>
+            </div>
+            <div class="card__body">
+              <p class="card__kicker">Trading Infrastructure</p>
+              <h3>Future360</h3>
+              <p>A prediction-market terminal that compares contracts across venues, detects arbitrage, and coordinates multi-leg orders. Idempotency keys, per-leg state, and live quote revalidation filter out false opportunities.</p>
+              <ul class="tags"><li>Python</li><li>WebSockets</li><li>REST</li></ul>
+              <div class="card__links"><span class="muted">Private repo</span></div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card__media">
+              <div class="metric"><strong>OCR + RAG</strong><span>cited answers from mortgage PDFs</span></div>
+            </div>
+            <div class="card__body">
+              <p class="card__kicker">Document AI</p>
+              <h3>Outamation</h3>
+              <p>A local pipeline that turns long, mixed-format mortgage packets into searchable, cited answers. It routes pages between native extraction and OCR, then uses page-aware chunking, FAISS retrieval, and structured field extraction.</p>
+              <ul class="tags"><li>Python</li><li>PaddleOCR</li><li>LlamaIndex</li><li>FAISS</li></ul>
+              <div class="card__links"><a href="https://github.com/KarthV01/Outamation" target="_blank" rel="noopener">Source ↗</a></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SKILLS & EDUCATION ============ -->
+    <section class="section" id="skills">
+      <div class="container">
+        <div class="section__head">
+          <span class="section__num">04</span>
+          <h2 class="section__title">Skills &amp; Education</h2>
+        </div>
+        <div class="skills">
+          <div class="skill-row">
+            <h3>Languages</h3>
+            <ul class="tags"><li>Python</li><li>Go</li><li>Java</li><li>C</li><li>C++</li><li>TypeScript</li><li>JavaScript</li><li>SQL</li><li>Solidity</li></ul>
+          </div>
+          <div class="skill-row">
+            <h3>Frameworks &amp; Libraries</h3>
+            <ul class="tags"><li>FastAPI</li><li>Spring Boot</li><li>Fastify</li><li>React</li><li>Next.js</li><li>Electron</li><li>Prisma</li><li>TensorFlow/Keras</li><li>scikit-learn</li><li>Pandas</li></ul>
+          </div>
+          <div class="skill-row">
+            <h3>Data &amp; Protocols</h3>
+            <ul class="tags"><li>PostgreSQL</li><li>MySQL</li><li>Redis Streams</li><li>REST</li><li>WebSockets</li><li>MQTT</li><li>gRPC</li><li>Protocol Buffers</li></ul>
+          </div>
+          <div class="skill-row">
+            <h3>Cloud</h3>
+            <ul class="tags"><li>AWS ECS/Fargate</li><li>RDS</li><li>SQS</li><li>S3</li><li>EventBridge</li><li>CloudWatch</li><li>Bedrock</li></ul>
+          </div>
+          <div class="skill-row">
+            <h3>Tools</h3>
+            <ul class="tags"><li>Docker</li><li>Kubernetes</li><li>Linux</li><li>Git</li><li>GitHub Actions</li></ul>
+          </div>
+        </div>
+
+        <div class="edu">
+          <div class="edu__item">
+            <div>
+              <h3>B.S. Electrical &amp; Computer Engineering</h3>
+              <p>Rutgers University – New Brunswick · Minors in Mathematics and Computer Science</p>
+              <ul class="tags">
+                <li>Software Engineering</li><li>Computer Architecture</li><li>Machine Learning</li>
+                <li>Data Structures &amp; Algorithms</li><li>Discrete Math</li><li>Linear Algebra</li>
+                <li>Applied Algebra</li><li>Probability Theory</li><li>Programming Methodology</li>
+              </ul>
+            </div>
+            <span class="edu__date">Expected May 2028</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACT ============ -->
+    <section class="section contact" id="contact">
+      <div class="container contact__inner">
+        <span class="section__num">05</span>
+        <h2 class="contact__title">Let's work <span class="accent">together</span>.</h2>
+        <p class="contact__lead">
+          Open to internships, collaborations, and interesting conversations.
+          The fastest way to reach me is email.
+        </p>
+        <a class="contact__email" href="mailto:karthik.v.voruganti@gmail.com">karthik.v.voruganti@gmail.com</a>
+        <div class="hero__cta contact__cta">
+          <a href="https://www.linkedin.com/in/karthik-voruganti-05b279326/" target="_blank" rel="noopener" class="btn btn--ghost">LinkedIn</a>
+          <a href="https://github.com/KarthV01" target="_blank" rel="noopener" class="btn btn--ghost">GitHub</a>
+          <a href="Karthik_Resume.pdf" class="btn btn--ghost" download>Download résumé</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p>© <span id="year"></span> Karthik Voruganti</p>
+      <a href="#top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
