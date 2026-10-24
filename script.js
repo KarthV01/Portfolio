@@ -10,7 +10,9 @@ document.getElementById("theme-toggle").addEventListener("click", () => {
   const next = current === "dark" ? "light" : "dark";
   root.dataset.theme = next;
   try { localStorage.setItem("theme", next); } catch (e) {}
+  repaintScenes();
 });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaintScenes);
 
 // Mobile menu
 const menuBtn = document.getElementById("menu-toggle");
@@ -64,3 +66,350 @@ const revealObserver = new IntersectionObserver(
   { threshold: 0.12 }
 );
 revealEls.forEach((el) => revealObserver.observe(el));
+
+// ============ Canvas art ============
+// Each scene draws into a canvas using the theme tokens; animated scenes only run while on screen.
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const MONO = '"JetBrains Mono", ui-monospace, monospace';
+const palette = {};
+const readPalette = () => {
+  const s = getComputedStyle(root);
+  const vars = { accent: "--accent", faint: "--text-faint", muted: "--text-muted", bg: "--bg", elev: "--bg-elev" };
+  for (const k in vars) palette[k] = s.getPropertyValue(vars[k]).trim();
+};
+readPalette();
+
+const scenes = [];
+function repaintScenes() {
+  readPalette();
+  scenes.forEach((s) => s.paint());
+}
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+
+function mountScene(canvas, painter) {
+  const s = { canvas, ctx: canvas.getContext("2d"), w: 0, h: 0, visible: false, state: null };
+  s.paint = (t = performance.now() / 1000) => { if (s.state) painter.draw(s, t); };
+  new ResizeObserver(() => {
+    const { width, height } = canvas.getBoundingClientRect();
+    if (!width || !height || (width === s.w && height === s.h)) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    s.w = width; s.h = height;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    s.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    s.state = painter.setup(s);
+    s.paint();
+  }).observe(canvas);
+  new IntersectionObserver(([e]) => { s.visible = e.isIntersecting; }).observe(canvas);
+  scenes.push(s);
+}
+
+// --- Hero: a tesseract rotating through planes of R^4, perspective-projected down to the screen
+const tesseract = {
+  setup() {
+    const verts = [...Array(16)].map((_, i) => [0, 1, 2, 3].map((b) => ((i >> b) & 1 ? 1 : -1)));
+    const edges = [];
+    verts.forEach((_, i) => [0, 1, 2, 3].forEach((b) => { const j = i ^ (1 << b); if (i < j) edges.push([i, j]); }));
+    return { verts, edges };
+  },
+  draw({ ctx, w, h, state }, t) {
+    if (reduceMotion) t = 2.4;
+    const cx = w / 2, cy = h / 2, unit = Math.min(w, h);
+    ctx.clearRect(0, 0, w, h);
+
+    // coordinate plane: dot grid and dashed axes
+    const step = unit / 10;
+    ctx.fillStyle = palette.faint;
+    ctx.globalAlpha = 0.45;
+    for (let x = cx % step; x < w; x += step)
+      for (let y = cy % step; y < h; y += step) ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
+    ctx.strokeStyle = palette.faint;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(0, cy); ctx.lineTo(w, cy);
+    ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const rot = (p, i, j, a) => {
+      const c = Math.cos(a), s = Math.sin(a), u = p[i], v = p[j];
+      p[i] = u * c - v * s;
+      p[j] = u * s + v * c;
+    };
+    const scale = unit * 0.8;
+    const pts = state.verts.map((v) => {
+      const p = v.slice();
+      rot(p, 0, 3, t * 0.45); // XW
+      rot(p, 1, 2, t * 0.28); // YZ
+      rot(p, 2, 3, t * 0.17); // ZW
+      const k = 1 / (4 - p[3]); // project R^4 -> R^3 from w = 4
+      return { x: cx + p[0] * k * scale, y: cy + p[1] * k * scale, w: (p[3] + 2) / 4 };
+    });
+
+    ctx.strokeStyle = palette.accent;
+    for (const [i, j] of state.edges) {
+      const d = (pts[i].w + pts[j].w) / 2;
+      ctx.globalAlpha = 0.2 + 0.7 * d;
+      ctx.lineWidth = 0.8 + 1.6 * d;
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x, pts[i].y);
+      ctx.lineTo(pts[j].x, pts[j].y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = palette.accent;
+    for (const p of pts) {
+      const r = 1.5 + 2.5 * p.w;
+      ctx.globalAlpha = 0.12;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r * 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.5 + 0.5 * p.w;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  },
+};
+
+// --- About: particles advected through a divergence-free field F = (dψ/dy, -dψ/dx)
+const FLOW_MAX = 0.0252, FLOW_SPEED = 45 / FLOW_MAX; // |F| <= b + 0.6d, scaled to ~45px/s
+const flow = (x, y, t) => {
+  const a = 0.014, b = 0.018, c = 0.01, d = 0.012;
+  const p = a * x + t * 0.15, q = b * y - t * 0.1, r = c * x - d * y + t * 0.2;
+  // ψ = sin(p) sin(q) + 0.6 sin(r)
+  return [
+    b * Math.sin(p) * Math.cos(q) - 0.6 * d * Math.cos(r),
+    -(a * Math.cos(p) * Math.sin(q) + 0.6 * c * Math.cos(r)),
+  ];
+};
+const field = {
+  setup({ w, h }) {
+    const spawn = (p = {}) =>
+      Object.assign(p, { x: Math.random() * w, y: Math.random() * h, life: 2 + Math.random() * 6, trail: [] });
+    const parts = Array.from({ length: Math.round(Math.min(220, Math.max(50, (w * h) / 5000))) }, () => spawn());
+    const state = { parts, spawn, last: 0 };
+    if (reduceMotion) for (let i = 0; i < 20; i++) field.advance(state, w, h, 0, 0.06, false);
+    return state;
+  },
+  advance(state, w, h, t, dt, respawn = true) {
+    for (const p of state.parts) {
+      const [u, v] = flow(p.x, p.y, t);
+      p.x += u * FLOW_SPEED * dt;
+      p.y += v * FLOW_SPEED * dt;
+      p.life -= dt;
+      p.trail.push(p.x, p.y);
+      if (p.trail.length > 40) p.trail.splice(0, 2);
+      if (respawn && (p.life < 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20)) state.spawn(p);
+    }
+  },
+  draw({ ctx, w, h, state }, t) {
+    if (reduceMotion) t = 0;
+    else {
+      field.advance(state, w, h, t, Math.min(0.05, t - state.last));
+      state.last = t;
+    }
+    ctx.clearRect(0, 0, w, h);
+
+    // arrow grid sampling the field
+    const g = 56;
+    ctx.strokeStyle = palette.faint;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let x = g / 2; x < w; x += g)
+      for (let y = g / 2; y < h; y += g) {
+        const [u, v] = flow(x, y, t);
+        const m = Math.hypot(u, v) || 1, ux = u / m, uy = v / m, len = 5 + 10 * Math.min(1, m / FLOW_MAX);
+        const x1 = x + (ux * len) / 2, y1 = y + (uy * len) / 2;
+        ctx.moveTo(x - (ux * len) / 2, y - (uy * len) / 2);
+        ctx.lineTo(x1, y1);
+        ctx.lineTo(x1 - ux * 4 + uy * 3, y1 - uy * 4 - ux * 3);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 - ux * 4 - uy * 3, y1 - uy * 4 + ux * 3);
+      }
+    ctx.stroke();
+
+    // streamline trails, tapering toward the tail
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = "round";
+    for (const p of state.parts) {
+      const tr = p.trail, life = clamp01(reduceMotion ? 1 : p.life);
+      for (let i = 2; i < tr.length; i += 2) {
+        ctx.globalAlpha = 0.4 * life * (i / tr.length);
+        ctx.beginPath();
+        ctx.moveTo(tr[i - 2], tr[i - 1]);
+        ctx.lineTo(tr[i], tr[i + 1]);
+        ctx.stroke();
+      }
+    }
+    ctx.lineCap = "butt";
+    ctx.globalAlpha = 1;
+  },
+};
+
+// --- Projects: Dijkstra's wavefront grows a shortest-path tree, then backtracks parents from t to s
+const dijkstra = (nodes, src) => {
+  const n = nodes.length, dist = new Array(n).fill(Infinity), parent = new Array(n).fill(-1), done = new Array(n).fill(false);
+  dist[src] = 0;
+  for (;;) {
+    let u = -1;
+    for (let i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0) break;
+    done[u] = true;
+    for (const [v, wt] of nodes[u].adj) if (dist[u] + wt < dist[v]) { dist[v] = dist[u] + wt; parent[v] = u; }
+  }
+  return { dist, parent };
+};
+const WAVE = 240, TRACE = 1.2, HOLD = 2.6, FADE = 0.9;
+const graph = {
+  setup({ w, h }) {
+    const sp = 88, cols = Math.ceil(w / sp) + 1, rows = Math.ceil(h / sp) + 1;
+    const nodes = [], idx = new Map(), edges = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        if (Math.random() < 0.85) {
+          idx.set(r * cols + c, nodes.length);
+          nodes.push({ x: c * sp + (Math.random() - 0.5) * sp * 0.6, y: r * sp + (Math.random() - 0.5) * sp * 0.6, adj: [] });
+        }
+    const at = (r, c) => (r < rows && c < cols ? idx.get(r * cols + c) : undefined);
+    const link = (a, b) => {
+      if (a === undefined || b === undefined) return;
+      const wt = Math.hypot(nodes[a].x - nodes[b].x, nodes[a].y - nodes[b].y);
+      nodes[a].adj.push([b, wt]);
+      nodes[b].adj.push([a, wt]);
+      edges.push([a, b]);
+    };
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) {
+        if (Math.random() < 0.85) link(at(r, c), at(r, c + 1));
+        if (Math.random() < 0.85) link(at(r, c), at(r + 1, c));
+        // at most one diagonal per grid square keeps the graph planar
+        if (Math.random() < 0.3) {
+          if (Math.random() < 0.5) link(at(r, c), at(r + 1, c + 1));
+          else link(at(r, c + 1), at(r + 1, c));
+        }
+      }
+    return { nodes, edges, run: null };
+  },
+  newRun({ nodes }, canvas, t) {
+    // keep s and t out from under the (opaque) project cards so the endpoints stay visible
+    const origin = canvas.getBoundingClientRect();
+    const cards = [...canvas.parentElement.querySelectorAll(".card")].map((c) => c.getBoundingClientRect());
+    const open = (n) => !cards.some((r) =>
+      n.x > r.left - origin.left - 12 && n.x < r.right - origin.left + 12 &&
+      n.y > r.top - origin.top - 12 && n.y < r.bottom - origin.top + 12);
+    let pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length && open(nodes[i]));
+    if (pool.length < 2) pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length);
+    let best = null;
+    for (let tries = 0; tries < 12 && pool.length; tries++) {
+      const src = pool[Math.floor(Math.random() * pool.length)];
+      const { dist, parent } = dijkstra(nodes, src);
+      const far = pool.filter((i) => dist[i] > 700 && dist[i] < 1500);
+      const tgt = far.length
+        ? far[Math.floor(Math.random() * far.length)]
+        : pool.reduce((a, i) => (dist[i] < Infinity && dist[i] > dist[a] ? i : a), src);
+      best = { src, tgt, dist, parent, start: t };
+      if (far.length) break;
+    }
+    if (!best || best.tgt === best.src) return null;
+    best.path = [];
+    for (let v = best.tgt; v >= 0; v = best.parent[v]) best.path.push(v);
+    return best;
+  },
+  draw({ canvas, ctx, w, h, state }, t) {
+    const { nodes, edges } = state;
+    if (!state.run) state.run = graph.newRun(state, canvas, t);
+    const run = state.run;
+    ctx.clearRect(0, 0, w, h);
+
+    // base graph
+    ctx.strokeStyle = palette.faint;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [a, b] of edges) { ctx.moveTo(nodes[a].x, nodes[a].y); ctx.lineTo(nodes[b].x, nodes[b].y); }
+    ctx.stroke();
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = palette.bg;
+    for (const n of nodes) {
+      ctx.beginPath(); ctx.arc(n.x, n.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    if (!run) return;
+
+    const { dist, parent, src, tgt, path } = run;
+    const reach = dist[tgt] / WAVE;
+    let e = t - run.start;
+    if (reduceMotion) e = reach + TRACE;
+    else if (e > reach + TRACE + HOLD + FADE) { state.run = null; return; }
+    const r = Math.min(e, reach) * WAVE;
+    const fade = 1 - clamp01((e - reach - TRACE - HOLD) / FADE);
+
+    // shortest-path tree, each edge growing out of its settled parent
+    ctx.strokeStyle = palette.accent;
+    ctx.globalAlpha = 0.45 * fade;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    nodes.forEach((n, v) => {
+      const p = parent[v];
+      if (p < 0 || dist[p] >= r) return;
+      const f = Math.min(1, (r - dist[p]) / (dist[v] - dist[p])), P = nodes[p];
+      ctx.moveTo(P.x, P.y);
+      ctx.lineTo(P.x + (n.x - P.x) * f, P.y + (n.y - P.y) * f);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = palette.accent;
+    nodes.forEach((n, v) => {
+      if (dist[v] > r) return;
+      ctx.globalAlpha = 0.75 * fade;
+      ctx.beginPath(); ctx.arc(n.x, n.y, 3, 0, Math.PI * 2); ctx.fill();
+      const age = r - dist[v];
+      if (e < reach && age < 90) { // frontier glow
+        ctx.globalAlpha = 0.3 * (1 - age / 90) * fade;
+        ctx.beginPath(); ctx.arc(n.x, n.y, 4 + age / 8, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+
+    // backtrack parent pointers from t to s
+    if (e > reach) {
+      let left = clamp01((e - reach) / TRACE) * dist[tgt];
+      ctx.globalAlpha = 0.9 * fade;
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(nodes[tgt].x, nodes[tgt].y);
+      for (let i = 1; i < path.length && left > 0; i++) {
+        const A = nodes[path[i - 1]], B = nodes[path[i]];
+        const len = Math.hypot(B.x - A.x, B.y - A.y), f = Math.min(1, left / len);
+        ctx.lineTo(A.x + (B.x - A.x) * f, A.y + (B.y - A.y) * f);
+        left -= len;
+      }
+      ctx.stroke();
+      ctx.lineCap = "butt";
+    }
+
+    // endpoints
+    ctx.font = `500 12px ${MONO}`;
+    ctx.lineWidth = 2;
+    const labels = [[src, "s"], [tgt, e > reach ? `t  d=${Math.round(dist[tgt])}` : "t"]];
+    for (const [v, label] of labels) {
+      const n = nodes[v];
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = palette.bg;
+      ctx.beginPath(); ctx.arc(n.x, n.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = palette.muted;
+      ctx.fillText(label, n.x + 12, n.y - 10);
+    }
+    ctx.globalAlpha = 1;
+  },
+};
+
+const painters = { tesseract, field, graph };
+document.querySelectorAll("canvas[data-scene]").forEach((c) => mountScene(c, painters[c.dataset.scene]));
+if (!reduceMotion) {
+  const frame = (now) => {
+    scenes.forEach((s) => s.visible && s.paint(now / 1000));
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}

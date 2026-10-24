@@ -62,7 +62,7 @@ body {
   line-height: 1.65;
   color: var(--text);
   background-color: var(--bg);
-  /* circuit traces run down the whole page; the hero layer is aligned so its buses fan out from the photo frame */
+  /* circuit traces run down the whole page; the hero layer is aligned so its buses fan out from the hero chip */
   background-image: var(--circuit);
   background-repeat: no-repeat, repeat;
   background-position: top center, top center;
@@ -158,12 +158,6 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .hero__lead { margin-top: 24px; max-width: 560px; font-size: 18px; color: var(--text-muted); }
 .hero__cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
 
-.placeholder-inline {
-  color: var(--text-faint);
-  border-bottom: 1px dashed var(--text-faint);
-}
-.placeholder { color: var(--text-faint); }
-
 .socials { display: flex; gap: 6px; margin-top: 40px; }
 .socials a {
   display: inline-grid; place-items: center; width: 40px; height: 40px;
@@ -171,30 +165,55 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 }
 .socials a:hover { color: var(--text); background: var(--bg-muted); }
 
-.hero__photo { display: flex; justify-content: center; }
-.photo-frame {
+/* Hero chip: an IC package the circuit traces run into, rendering a rotating tesseract */
+.hero__visual { display: flex; justify-content: center; }
+.chip {
+  --pin: color-mix(in srgb, var(--accent) 40%, var(--border));
   position: relative;
   width: 100%; max-width: 340px; aspect-ratio: 4 / 5;
-  border-radius: 24px;
+  border-radius: 20px;
   background:
-    radial-gradient(circle at 30% 20%, var(--accent-soft), transparent 60%),
-    var(--bg-muted);
+    radial-gradient(circle at 50% 48%, var(--accent-soft), transparent 65%),
+    var(--bg-elev);
   border: 1px solid var(--border);
-  display: grid; place-content: center; text-align: center; gap: 6px;
   box-shadow: var(--shadow);
 }
-.photo-frame::before {
-  content: ""; position: absolute; inset: -12px; z-index: -1;
-  border: 1px dashed var(--border); border-radius: 30px;
+.chip::before, .chip::after { content: ""; position: absolute; z-index: -1; }
+.chip::before {
+  inset: 40px -9px;
+  background:
+    repeating-linear-gradient(to bottom, var(--pin) 0 5px, transparent 5px 12px) left / 9px 100% no-repeat,
+    repeating-linear-gradient(to bottom, var(--pin) 0 5px, transparent 5px 12px) right / 9px 100% no-repeat;
 }
-.photo-frame span { font-size: 88px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; color: var(--text-faint); }
-.photo-frame small { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.1em; }
+.chip::after {
+  inset: -9px 40px;
+  background:
+    repeating-linear-gradient(to right, var(--pin) 0 5px, transparent 5px 12px) top / 100% 9px no-repeat,
+    repeating-linear-gradient(to right, var(--pin) 0 5px, transparent 5px 12px) bottom / 100% 9px no-repeat;
+}
+.chip__canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; }
+.chip__label { position: absolute; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--text-faint); line-height: 1; }
+.chip__label--tl { top: 16px; left: 18px; display: flex; align-items: center; gap: 8px; }
+.chip__label--tl::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.chip__label--tr { top: 16px; right: 18px; }
+.chip__label--bl { bottom: 16px; left: 18px; text-transform: uppercase; }
+.chip__label--br { bottom: 16px; right: 18px; }
 
 /* ============ SECTIONS ============ */
 .section { padding: 96px 0; border-top: 1px solid var(--border); }
 .section__head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 48px; }
 .section__num { font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
 .section__title { font-size: clamp(28px, 4vw, 40px); }
+.section__caption { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+
+/* Sections with their own canvas art cover the circuit background */
+.section--art { position: relative; background: var(--bg); transition: background 0.25s; }
+.section--art > .container { position: relative; }
+.section__art {
+  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 96px, #000 calc(100% - 96px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 96px, #000 calc(100% - 96px), transparent);
+}
 
 /* About */
 .about { display: grid; grid-template-columns: 1.6fr 1fr; gap: 64px; }
@@ -363,10 +382,13 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 @media (max-width: 900px) {
   .hero { padding: 64px 0 80px; }
   .hero__inner, .about { grid-template-columns: 1fr; gap: 48px; }
-  .hero__photo { order: -1; justify-content: flex-start; }
-  .photo-frame { max-width: 180px; border-radius: 20px; }
-  .photo-frame span { font-size: 56px; }
-  .photo-frame::before { display: none; }
+  .hero__visual { order: -1; justify-content: flex-start; padding-left: 9px; }
+  .chip { max-width: 200px; border-radius: 16px; }
+  .chip__label { font-size: 9px; }
+  .chip__label--tl, .chip__label--tr { top: 12px; }
+  .chip__label--bl, .chip__label--br { bottom: 12px; }
+  .chip__label--tl, .chip__label--bl { left: 12px; }
+  .chip__label--tr, .chip__label--br { right: 12px; }
   .skill-row { grid-template-columns: 1fr; gap: 10px; }
   .card--featured { flex-direction: column; }
   .card--featured .card__media { min-height: 0; aspect-ratio: 16 / 9; }
@@ -386,6 +408,7 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   .nav__menu { display: inline-grid; }
   .nav__actions .btn--small { display: none; }
   .section { padding: 72px 0; }
+  .section__caption { display: none; }
   .projects { grid-template-columns: 1fr; }
   .timeline__item { grid-template-columns: 1fr; gap: 6px; }
   .contact { padding: 96px 0; }
