@@ -70,6 +70,14 @@ revealEls.forEach((el) => revealObserver.observe(el));
 // ============ Canvas art ============
 // Each scene draws into a canvas using the theme tokens; animated scenes only run while on screen.
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Backgrounds lag behind the page, scrolling at (1 - PARALLAX) of its speed
+const PARALLAX = 0.6;
+// offset to add to an element's drawing (canvas y = world y + shift); zero when the element is centred on screen
+const parallaxShift = (el) => {
+  if (reduceMotion) return 0;
+  const r = el.getBoundingClientRect();
+  return -(r.top + r.height / 2 - innerHeight / 2) * PARALLAX;
+};
 const MONO = '"JetBrains Mono", ui-monospace, monospace';
 const palette = {};
 const readPalette = () => {
@@ -172,7 +180,7 @@ const tesseract = {
 
 // --- About: a Hamiltonian flow (ẋ = ψy, ẏ = −ψx) on a perturbed cellular stream function, so the plane
 // tiles into counter-rotating vortices joined at saddles. Streamlines are level sets of ψ; drawn with parallax.
-const VK = Math.PI / 170, VORTEX_SPEED = 2200, PARALLAX = 0.45;
+const VK = Math.PI / 170, VORTEX_SPEED = 2200;
 const psi = (x, y, t) =>
   Math.sin(VK * x + 0.6 * Math.sin(0.13 * t)) * Math.sin(VK * y + 0.5 * Math.cos(0.11 * t)) +
   0.45 * Math.sin(0.55 * VK * x - 0.2 * t + 1.3) * Math.cos(0.7 * VK * y + 0.15 * t);
@@ -207,8 +215,7 @@ const vortex = {
     }
   },
   draw({ canvas, ctx, w, h, state }, t) {
-    // canvas y = world y + shift, so the field scrolls at (1 - PARALLAX) of the page's speed
-    const shift = reduceMotion ? 0 : -canvas.getBoundingClientRect().top * PARALLAX;
+    const shift = parallaxShift(canvas);
     state.top = -shift;
     if (reduceMotion) t = 0;
     else {
@@ -340,13 +347,15 @@ const dijkstra = (nodes, src) => {
 const WAVE = 240, TRACE = 1.2, HOLD = 2.6, FADE = 0.9;
 const graph = {
   setup({ w, h }) {
-    const sp = 104, cols = Math.ceil(w / sp) + 1, rows = Math.ceil(h / sp) + 1;
+    // extend above and below the canvas by as much plane as the parallax can reveal
+    const sp = 104, E = reduceMotion ? 0 : (PARALLAX * (h + innerHeight)) / 2 + sp;
+    const cols = Math.ceil(w / sp) + 1, rows = Math.ceil((h + 2 * E) / sp) + 1;
     const nodes = [], idx = new Map(), edges = [];
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++)
         if (Math.random() < 0.85) {
           idx.set(r * cols + c, nodes.length);
-          nodes.push({ x: c * sp + (Math.random() - 0.5) * sp * 0.6, y: r * sp + (Math.random() - 0.5) * sp * 0.6, adj: [] });
+          nodes.push({ x: c * sp + (Math.random() - 0.5) * sp * 0.6, y: r * sp - E + (Math.random() - 0.5) * sp * 0.6, adj: [] });
         }
     const at = (r, c) => (r < rows && c < cols ? idx.get(r * cols + c) : undefined);
     const link = (a, b) => {
@@ -368,13 +377,16 @@ const graph = {
       }
     return { nodes, edges, run: null };
   },
-  newRun({ nodes }, canvas, t) {
-    // keep s and t off the project visuals and card text so the endpoints stay visible
+  newRun({ nodes }, canvas, shift, t) {
+    // pick s and t on screen, clear of the project visuals and card text, so the endpoints stay visible
     const origin = canvas.getBoundingClientRect();
     const cards = [...canvas.parentElement.querySelectorAll(".card__media, .card__body > *")].map((c) => c.getBoundingClientRect());
-    const open = (n) => n.x > 30 && n.x < origin.width - 110 && !cards.some((r) =>
-      n.x > r.left - origin.left - 12 && n.x < r.right - origin.left + 12 &&
-      n.y > r.top - origin.top - 12 && n.y < r.bottom - origin.top + 12);
+    const open = (n) => {
+      const y = n.y + shift, sy = origin.top + y;
+      return n.x > 30 && n.x < origin.width - 110 && sy > 90 && sy < innerHeight - 60 && !cards.some((r) =>
+        n.x > r.left - origin.left - 12 && n.x < r.right - origin.left + 12 &&
+        y > r.top - origin.top - 12 && y < r.bottom - origin.top + 12);
+    };
     let pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length && open(nodes[i]));
     if (pool.length < 2) pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length);
     let best = null;
@@ -393,11 +405,19 @@ const graph = {
     for (let v = best.tgt; v >= 0; v = best.parent[v]) best.path.push(v);
     return best;
   },
-  draw({ canvas, ctx, w, h, state }, t) {
-    const { nodes, edges } = state;
-    if (!state.run) state.run = graph.newRun(state, canvas, t);
-    const run = state.run;
+  draw(s, t) {
+    const { ctx, w, h } = s, shift = parallaxShift(s.canvas);
     ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.translate(0, shift);
+    graph.paint(s, shift, t);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  },
+  paint({ canvas, ctx, state }, shift, t) {
+    const { nodes, edges } = state;
+    if (!state.run) state.run = graph.newRun(state, canvas, shift, t);
+    const run = state.run;
 
     // base graph
     ctx.strokeStyle = palette.faint;
@@ -484,7 +504,9 @@ const graph = {
 const painters = { tesseract, vortex, graph };
 document.querySelectorAll("canvas[data-scene]").forEach((c) => mountScene(c, painters[c.dataset.scene]));
 if (!reduceMotion) {
+  const circuit = document.querySelector(".bg-layer__tile");
   const frame = (now) => {
+    circuit.style.transform = `translate3d(0, ${scrollY * PARALLAX}px, 0)`;
     scenes.forEach((s) => s.visible && s.paint(now / 1000));
     requestAnimationFrame(frame);
   };
