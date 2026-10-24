@@ -170,79 +170,156 @@ const tesseract = {
   },
 };
 
-// --- About: particles advected through a divergence-free field F = (dψ/dy, -dψ/dx)
-const FLOW_MAX = 0.0252, FLOW_SPEED = 45 / FLOW_MAX; // |F| <= b + 0.6d, scaled to ~45px/s
-const flow = (x, y, t) => {
-  const a = 0.014, b = 0.018, c = 0.01, d = 0.012;
-  const p = a * x + t * 0.15, q = b * y - t * 0.1, r = c * x - d * y + t * 0.2;
-  // ψ = sin(p) sin(q) + 0.6 sin(r)
-  return [
-    b * Math.sin(p) * Math.cos(q) - 0.6 * d * Math.cos(r),
-    -(a * Math.cos(p) * Math.sin(q) + 0.6 * c * Math.cos(r)),
-  ];
-};
-const field = {
+// --- About: a Hamiltonian flow (ẋ = ψy, ẏ = −ψx) on a perturbed cellular stream function, so the plane
+// tiles into counter-rotating vortices joined at saddles. Streamlines are level sets of ψ; drawn with parallax.
+const VK = Math.PI / 170, VORTEX_SPEED = 2200, PARALLAX = 0.45;
+const psi = (x, y, t) =>
+  Math.sin(VK * x + 0.6 * Math.sin(0.13 * t)) * Math.sin(VK * y + 0.5 * Math.cos(0.11 * t)) +
+  0.45 * Math.sin(0.55 * VK * x - 0.2 * t + 1.3) * Math.cos(0.7 * VK * y + 0.15 * t);
+const velocity = (x, y, t) => [
+  (psi(x, y + 1, t) - psi(x, y - 1, t)) / 2,
+  -(psi(x + 1, y, t) - psi(x - 1, y, t)) / 2,
+];
+// marching-squares segments per corner mask (tl=8, tr=4, br=2, bl=1); edges: 0 top, 1 right, 2 bottom, 3 left
+const MS = [[], [[3, 2]], [[2, 1]], [[3, 1]], [[0, 1]], [[3, 0], [2, 1]], [[0, 2]], [[3, 0]],
+  [[3, 0]], [[0, 2]], [[0, 1], [3, 2]], [[0, 1]], [[3, 1]], [[2, 1]], [[3, 2]], []];
+const vortex = {
   setup({ w, h }) {
-    const spawn = (p = {}) =>
-      Object.assign(p, { x: Math.random() * w, y: Math.random() * h, life: 2 + Math.random() * 6, trail: [] });
-    const parts = Array.from({ length: Math.round(Math.min(220, Math.max(50, (w * h) / 5000))) }, () => spawn());
-    const state = { parts, spawn, last: 0 };
-    if (reduceMotion) for (let i = 0; i < 20; i++) field.advance(state, w, h, 0, 0.06, false);
+    const state = { parts: [], top: 0, last: 0 };
+    const n = Math.round(Math.min(900, Math.max(150, (w * h) / 1100)));
+    for (let i = 0; i < n; i++) state.parts.push(vortex.spawn({}, state, w, h));
+    if (reduceMotion) for (let i = 0; i < 14; i++) vortex.advance(state, w, h, 0, 0.08, false);
     return state;
+  },
+  spawn(p, state, w, h) {
+    return Object.assign(p, { x: Math.random() * w, y: state.top + Math.random() * h, life: 1.5 + Math.random() * 4, trail: [] });
   },
   advance(state, w, h, t, dt, respawn = true) {
     for (const p of state.parts) {
-      const [u, v] = flow(p.x, p.y, t);
-      p.x += u * FLOW_SPEED * dt;
-      p.y += v * FLOW_SPEED * dt;
+      const [u, v] = velocity(p.x, p.y, t);
+      p.x += u * VORTEX_SPEED * dt;
+      p.y += v * VORTEX_SPEED * dt;
       p.life -= dt;
       p.trail.push(p.x, p.y);
-      if (p.trail.length > 40) p.trail.splice(0, 2);
-      if (respawn && (p.life < 0 || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20)) state.spawn(p);
+      if (p.trail.length > 32) p.trail.splice(0, 2);
+      if (respawn && (p.life < 0 || p.x < -20 || p.x > w + 20 || p.y < state.top - 20 || p.y > state.top + h + 20))
+        vortex.spawn(p, state, w, h);
     }
   },
-  draw({ ctx, w, h, state }, t) {
+  draw({ canvas, ctx, w, h, state }, t) {
+    // canvas y = world y + shift, so the field scrolls at (1 - PARALLAX) of the page's speed
+    const shift = reduceMotion ? 0 : -canvas.getBoundingClientRect().top * PARALLAX;
+    state.top = -shift;
     if (reduceMotion) t = 0;
     else {
-      field.advance(state, w, h, t, Math.min(0.05, t - state.last));
+      vortex.advance(state, w, h, t, Math.min(0.05, t - state.last));
       state.last = t;
     }
     ctx.clearRect(0, 0, w, h);
+    ctx.save();
+    ctx.translate(0, shift);
 
-    // arrow grid sampling the field
-    const g = 56;
-    ctx.strokeStyle = palette.faint;
-    ctx.globalAlpha = 0.5;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    for (let x = g / 2; x < w; x += g)
-      for (let y = g / 2; y < h; y += g) {
-        const [u, v] = flow(x, y, t);
-        const m = Math.hypot(u, v) || 1, ux = u / m, uy = v / m, len = 5 + 10 * Math.min(1, m / FLOW_MAX);
-        const x1 = x + (ux * len) / 2, y1 = y + (uy * len) / 2;
-        ctx.moveTo(x - (ux * len) / 2, y - (uy * len) / 2);
-        ctx.lineTo(x1, y1);
-        ctx.lineTo(x1 - ux * 4 + uy * 3, y1 - uy * 4 - ux * 3);
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x1 - ux * 4 - uy * 3, y1 - uy * 4 + ux * 3);
-      }
-    ctx.stroke();
+    // sample ψ on a grid covering the visible window of the plane
+    const g = 18, cols = Math.ceil(w / g) + 2, rows = Math.ceil(h / g) + 2;
+    const y0 = Math.floor(state.top / g) * g - g;
+    const val = new Float32Array(cols * rows);
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) val[r * cols + c] = psi(c * g, y0 + r * g, t);
 
-    // streamline trails, tapering toward the tail
+    // streamlines: level sets of ψ
+    ctx.lineWidth = 1;
+    for (let L = -1.35; L < 1.4; L += 0.15) {
+      const zero = Math.abs(L) < 0.01;
+      ctx.strokeStyle = zero ? palette.accent : palette.faint;
+      ctx.globalAlpha = zero ? 0.5 : 0.42;
+      ctx.beginPath();
+      for (let r = 0; r < rows - 1; r++)
+        for (let c = 0; c < cols - 1; c++) {
+          const a = val[r * cols + c], b = val[r * cols + c + 1], cc = val[(r + 1) * cols + c + 1], d = val[(r + 1) * cols + c];
+          const segs = MS[(a > L) << 3 | (b > L) << 2 | (cc > L) << 1 | (d > L)];
+          if (!segs.length) continue;
+          const x = c * g, y = y0 + r * g;
+          const pt = (e) =>
+            e === 0 ? [x + (g * (L - a)) / (b - a), y]
+            : e === 1 ? [x + g, y + (g * (L - b)) / (cc - b)]
+            : e === 2 ? [x + (g * (L - d)) / (cc - d), y + g]
+            : [x, y + (g * (L - a)) / (d - a)];
+          for (const [e1, e2] of segs) {
+            const p1 = pt(e1), p2 = pt(e2);
+            ctx.moveTo(p1[0], p1[1]);
+            ctx.lineTo(p2[0], p2[1]);
+          }
+        }
+      ctx.stroke();
+    }
+
+    // particles riding the flow, trails tapered in four alpha bands
     ctx.strokeStyle = palette.accent;
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1.3;
     ctx.lineCap = "round";
-    for (const p of state.parts) {
-      const tr = p.trail, life = clamp01(reduceMotion ? 1 : p.life);
-      for (let i = 2; i < tr.length; i += 2) {
-        ctx.globalAlpha = 0.4 * life * (i / tr.length);
-        ctx.beginPath();
-        ctx.moveTo(tr[i - 2], tr[i - 1]);
-        ctx.lineTo(tr[i], tr[i + 1]);
-        ctx.stroke();
+    for (let q = 0; q < 4; q++) {
+      ctx.globalAlpha = 0.1 + 0.15 * q;
+      ctx.beginPath();
+      for (const p of state.parts) {
+        const tr = p.trail, n = tr.length / 2;
+        for (let i = 1; i < n; i++) {
+          if (Math.floor((i / n) * 4) !== q) continue;
+          ctx.moveTo(tr[2 * i - 2], tr[2 * i - 1]);
+          ctx.lineTo(tr[2 * i], tr[2 * i + 1]);
+        }
       }
+      ctx.stroke();
     }
     ctx.lineCap = "butt";
+
+    // critical points: local minima of |∇ψ|, refined by a Newton step, classified by the Hessian
+    for (let r = 1; r < rows - 1; r++)
+      for (let c = 1; c < cols - 1; c++) {
+        const at = (dr, dc) => val[(r + dr) * cols + c + dc];
+        const m = (rr, cc2) => {
+          const gx = val[rr * cols + cc2 + 1] - val[rr * cols + cc2 - 1], gy = val[(rr + 1) * cols + cc2] - val[(rr - 1) * cols + cc2];
+          return gx * gx + gy * gy;
+        };
+        const here = m(r, c);
+        if (here > (0.3 * VK * 2 * g) ** 2) continue;
+        let isMin = true;
+        for (let dr = -1; dr <= 1 && isMin; dr++)
+          for (let dc = -1; dc <= 1; dc++)
+            if ((dr || dc) && r + dr > 0 && r + dr < rows - 1 && c + dc > 0 && c + dc < cols - 1 && m(r + dr, c + dc) < here) { isMin = false; break; }
+        if (!isMin) continue;
+        const gx = (at(0, 1) - at(0, -1)) / (2 * g), gy = (at(1, 0) - at(-1, 0)) / (2 * g);
+        const hxx = (at(0, 1) - 2 * at(0, 0) + at(0, -1)) / (g * g), hyy = (at(1, 0) - 2 * at(0, 0) + at(-1, 0)) / (g * g);
+        const hxy = (at(1, 1) - at(1, -1) - at(-1, 1) + at(-1, -1)) / (4 * g * g);
+        const det = hxx * hyy - hxy * hxy;
+        if (Math.abs(det) < 1e-12) continue;
+        const dx = -(hyy * gx - hxy * gy) / det, dy = -(hxx * gy - hxy * gx) / det;
+        if (Math.hypot(dx, dy) > g) continue;
+        const px = c * g + dx, py = y0 + r * g + dy;
+        if (det > 0) { // center: a vortex
+          ctx.globalAlpha = 0.85;
+          ctx.strokeStyle = palette.accent;
+          ctx.fillStyle = palette.accent;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(px, py, 1.6, 0, Math.PI * 2); ctx.fill();
+        } else { // saddle: an x along the separatrices, where the Hessian's quadratic form vanishes
+          const disc = Math.sqrt(hxy * hxy - hxx * hyy);
+          const angles = Math.abs(hyy) > 1e-12
+            ? [Math.atan((-hxy + disc) / hyy), Math.atan((-hxy - disc) / hyy)]
+            : [Math.PI / 2, Math.atan2(-hxx, 2 * hxy)];
+          ctx.globalAlpha = 0.8;
+          ctx.strokeStyle = palette.muted;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          for (const th of angles) {
+            const ux = Math.cos(th) * 7, uy = Math.sin(th) * 7;
+            ctx.moveTo(px - ux, py - uy);
+            ctx.lineTo(px + ux, py + uy);
+          }
+          ctx.stroke();
+        }
+      }
+    ctx.restore();
     ctx.globalAlpha = 1;
   },
 };
@@ -263,7 +340,7 @@ const dijkstra = (nodes, src) => {
 const WAVE = 240, TRACE = 1.2, HOLD = 2.6, FADE = 0.9;
 const graph = {
   setup({ w, h }) {
-    const sp = 88, cols = Math.ceil(w / sp) + 1, rows = Math.ceil(h / sp) + 1;
+    const sp = 104, cols = Math.ceil(w / sp) + 1, rows = Math.ceil(h / sp) + 1;
     const nodes = [], idx = new Map(), edges = [];
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++)
@@ -281,10 +358,10 @@ const graph = {
     };
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++) {
-        if (Math.random() < 0.85) link(at(r, c), at(r, c + 1));
-        if (Math.random() < 0.85) link(at(r, c), at(r + 1, c));
+        if (Math.random() < 0.8) link(at(r, c), at(r, c + 1));
+        if (Math.random() < 0.8) link(at(r, c), at(r + 1, c));
         // at most one diagonal per grid square keeps the graph planar
-        if (Math.random() < 0.3) {
+        if (Math.random() < 0.2) {
           if (Math.random() < 0.5) link(at(r, c), at(r + 1, c + 1));
           else link(at(r, c + 1), at(r + 1, c));
         }
@@ -292,10 +369,10 @@ const graph = {
     return { nodes, edges, run: null };
   },
   newRun({ nodes }, canvas, t) {
-    // keep s and t out from under the (opaque) project cards so the endpoints stay visible
+    // keep s and t off the project visuals and card text so the endpoints stay visible
     const origin = canvas.getBoundingClientRect();
-    const cards = [...canvas.parentElement.querySelectorAll(".card")].map((c) => c.getBoundingClientRect());
-    const open = (n) => !cards.some((r) =>
+    const cards = [...canvas.parentElement.querySelectorAll(".card__media, .card__body > *")].map((c) => c.getBoundingClientRect());
+    const open = (n) => n.x > 30 && n.x < origin.width - 110 && !cards.some((r) =>
       n.x > r.left - origin.left - 12 && n.x < r.right - origin.left + 12 &&
       n.y > r.top - origin.top - 12 && n.y < r.bottom - origin.top + 12);
     let pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length && open(nodes[i]));
@@ -324,15 +401,15 @@ const graph = {
 
     // base graph
     ctx.strokeStyle = palette.faint;
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.28;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (const [a, b] of edges) { ctx.moveTo(nodes[a].x, nodes[a].y); ctx.lineTo(nodes[b].x, nodes[b].y); }
     ctx.stroke();
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.45;
     ctx.fillStyle = palette.bg;
     for (const n of nodes) {
-      ctx.beginPath(); ctx.arc(n.x, n.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     if (!run) return;
 
@@ -346,8 +423,8 @@ const graph = {
 
     // shortest-path tree, each edge growing out of its settled parent
     ctx.strokeStyle = palette.accent;
-    ctx.globalAlpha = 0.45 * fade;
-    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.3 * fade;
+    ctx.lineWidth = 1.3;
     ctx.beginPath();
     nodes.forEach((n, v) => {
       const p = parent[v];
@@ -361,11 +438,11 @@ const graph = {
     ctx.fillStyle = palette.accent;
     nodes.forEach((n, v) => {
       if (dist[v] > r) return;
-      ctx.globalAlpha = 0.75 * fade;
-      ctx.beginPath(); ctx.arc(n.x, n.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.55 * fade;
+      ctx.beginPath(); ctx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); ctx.fill();
       const age = r - dist[v];
       if (e < reach && age < 90) { // frontier glow
-        ctx.globalAlpha = 0.3 * (1 - age / 90) * fade;
+        ctx.globalAlpha = 0.18 * (1 - age / 90) * fade;
         ctx.beginPath(); ctx.arc(n.x, n.y, 4 + age / 8, 0, Math.PI * 2); ctx.fill();
       }
     });
@@ -373,8 +450,8 @@ const graph = {
     // backtrack parent pointers from t to s
     if (e > reach) {
       let left = clamp01((e - reach) / TRACE) * dist[tgt];
-      ctx.globalAlpha = 0.9 * fade;
-      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.7 * fade;
+      ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(nodes[tgt].x, nodes[tgt].y);
@@ -404,7 +481,7 @@ const graph = {
   },
 };
 
-const painters = { tesseract, field, graph };
+const painters = { tesseract, vortex, graph };
 document.querySelectorAll("canvas[data-scene]").forEach((c) => mountScene(c, painters[c.dataset.scene]));
 if (!reduceMotion) {
   const frame = (now) => {
