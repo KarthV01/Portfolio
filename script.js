@@ -70,20 +70,14 @@ revealEls.forEach((el) => revealObserver.observe(el));
 // ============ Canvas art ============
 // Each scene draws into a canvas using the theme tokens; animated scenes only run while on screen.
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-// Backgrounds lag behind the page, scrolling at (1 - PARALLAX) of its speed
-const PARALLAX = 0.6;
-// offset to add to an element's drawing (canvas y = world y + shift); zero when the element is centred on screen
-const parallaxShift = (el) => {
-  if (reduceMotion) return 0;
-  const r = el.getBoundingClientRect();
-  return -(r.top + r.height / 2 - innerHeight / 2) * PARALLAX;
-};
 const MONO = '"JetBrains Mono", ui-monospace, monospace';
 const palette = {};
+let paletteVersion = 0; // bumped on theme change so cached layers know to re-render
 const readPalette = () => {
   const s = getComputedStyle(root);
   const vars = { accent: "--accent", faint: "--text-faint", muted: "--text-muted", bg: "--bg", elev: "--bg-elev" };
   for (const k in vars) palette[k] = s.getPropertyValue(vars[k]).trim();
+  paletteVersion++;
 };
 readPalette();
 
@@ -94,17 +88,56 @@ function repaintScenes() {
 }
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 
+// ============ Parallax ============
+// Backgrounds lag behind the page, scrolling at (1 - --parallax) of its speed. Where the browser supports
+// scroll-driven animations the CSS moves them on the compositor; otherwise the frame loop below does it.
+// JS only measures the travel each layer needs.
+const PARALLAX = parseFloat(getComputedStyle(root).getPropertyValue("--parallax")) || 0;
+const cssParallax = CSS.supports("animation-timeline: view()");
+const artSections = [...document.querySelectorAll(".section--art")];
+const layoutParallax = () => {
+  root.style.setProperty("--scroll-max", `${root.scrollHeight - innerHeight}px`);
+  if (reduceMotion) return;
+  for (const sec of artSections)
+    sec.style.setProperty("--par-extent", `${Math.ceil((PARALLAX * (sec.offsetHeight + innerHeight)) / 2)}px`);
+};
+layoutParallax();
+addEventListener("resize", layoutParallax);
+new ResizeObserver(layoutParallax).observe(document.body);
+
+// The vertical slice of a section-art canvas that is actually on screen, in canvas coordinates
+const visibleRange = ({ canvas, h }) => {
+  if (reduceMotion) return [0, h];
+  const c = canvas.getBoundingClientRect(), sec = canvas.closest("section").getBoundingClientRect();
+  return [Math.max(0, Math.max(sec.top, 0) - c.top), Math.min(h, Math.min(sec.bottom, innerHeight) - c.top)];
+};
+// An offscreen canvas matching a scene's backing store, for layers that are cached between frames
+const makeLayer = (s) => {
+  const c = document.createElement("canvas");
+  c.width = s.canvas.width;
+  c.height = s.canvas.height;
+  c.getContext("2d").setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
+  return c;
+};
+// Copy rows [y0, y1) of a cached layer onto the scene
+const blit = ({ ctx, w, h, dpr }, layer, y0, y1) => {
+  y0 = Math.max(0, Math.floor(y0));
+  y1 = Math.min(h, Math.ceil(y1));
+  if (y1 > y0) ctx.drawImage(layer, 0, y0 * dpr, w * dpr, (y1 - y0) * dpr, 0, y0, w, y1 - y0);
+};
+
 function mountScene(canvas, painter) {
-  const s = { canvas, ctx: canvas.getContext("2d"), w: 0, h: 0, visible: false, state: null };
+  const s = { canvas, ctx: canvas.getContext("2d"), w: 0, h: 0, dpr: 1, visible: false, state: null, lastPaint: -Infinity };
+  s.interval = 1000 / (painter.fps || 60);
   s.paint = (t = performance.now() / 1000) => { if (s.state) painter.draw(s, t); };
   new ResizeObserver(() => {
     const { width, height } = canvas.getBoundingClientRect();
-    if (!width || !height || (width === s.w && height === s.h)) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (!width || !height || (width === s.w && Math.abs(height - s.h) < 1)) return;
+    s.dpr = Math.min(window.devicePixelRatio || 1, painter.maxDpr || 2);
     s.w = width; s.h = height;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    s.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.round(width * s.dpr);
+    canvas.height = Math.round(height * s.dpr);
+    s.ctx.setTransform(s.dpr, 0, 0, s.dpr, 0, 0);
     s.state = painter.setup(s);
     s.paint();
   }).observe(canvas);
@@ -179,114 +212,105 @@ const tesseract = {
 };
 
 // --- About: a Hamiltonian flow (ẋ = ψy, ẏ = −ψx) on a perturbed cellular stream function, so the plane
-// tiles into counter-rotating vortices joined at saddles. Streamlines are level sets of ψ; drawn with parallax.
-const VK = Math.PI / 170, VORTEX_SPEED = 2200;
-const psi = (x, y, t) =>
-  Math.sin(VK * x + 0.6 * Math.sin(0.13 * t)) * Math.sin(VK * y + 0.5 * Math.cos(0.11 * t)) +
-  0.45 * Math.sin(0.55 * VK * x - 0.2 * t + 1.3) * Math.cos(0.7 * VK * y + 0.15 * t);
-const velocity = (x, y, t) => [
-  (psi(x, y + 1, t) - psi(x, y - 1, t)) / 2,
-  -(psi(x + 1, y, t) - psi(x - 1, y, t)) / 2,
-];
-// marching-squares segments per corner mask (tl=8, tr=4, br=2, bl=1); edges: 0 top, 1 right, 2 bottom, 3 left
-const MS = [[], [[3, 2]], [[2, 1]], [[3, 1]], [[0, 1]], [[3, 0], [2, 1]], [[0, 2]], [[3, 0]],
-  [[3, 0]], [[0, 2]], [[0, 1], [3, 2]], [[0, 1]], [[3, 1]], [[2, 1]], [[3, 2]], []];
+// tiles into counter-rotating vortices joined at saddles. Streamlines are level sets of ψ.
+// The streamlines and critical points drift slowly, so they are cached on a layer refreshed a few times a
+// second; only the particles are drawn every frame.
+const VK = Math.PI / 170, VORTEX_SPEED = 2200, LAYER_EVERY = 0.2, LAYER_MARGIN = 260;
+const phases = (t) => [0.6 * Math.sin(0.13 * t), 0.5 * Math.cos(0.11 * t), 1.3 - 0.2 * t, 0.15 * t];
+// ψ = sin(A) sin(B) + 0.45 sin(C) cos(D)
+const psi = (x, y, [a, b, c, d]) =>
+  Math.sin(VK * x + a) * Math.sin(VK * y + b) + 0.45 * Math.sin(0.55 * VK * x + c) * Math.cos(0.7 * VK * y + d);
+// (ψy, −ψx), differentiated by hand
+const velocity = (x, y, [a, b, c, d]) => {
+  const A = VK * x + a, B = VK * y + b, C = 0.55 * VK * x + c, D = 0.7 * VK * y + d;
+  const sA = Math.sin(A), cA = Math.cos(A), sB = Math.sin(B), cB = Math.cos(B);
+  const sC = Math.sin(C), cC = Math.cos(C), sD = Math.sin(D), cD = Math.cos(D);
+  return [
+    VK * (sA * cB - 0.315 * sC * sD),
+    -VK * (cA * sB + 0.2475 * cC * cD),
+  ];
+};
 const vortex = {
-  setup({ w, h }) {
-    const state = { parts: [], top: 0, last: 0 };
-    const n = Math.round(Math.min(900, Math.max(150, (w * h) / 1100)));
-    for (let i = 0; i < n; i++) state.parts.push(vortex.spawn({}, state, w, h));
-    if (reduceMotion) for (let i = 0; i < 14; i++) vortex.advance(state, w, h, 0, 0.08, false);
+  fps: 30,
+  maxDpr: 1,
+  setup(s) {
+    const secH = s.canvas.closest("section").offsetHeight;
+    const state = { parts: [], secH, live: 0, last: 0, layer: makeLayer(s), layerT: -Infinity, layerKey: -1, layerRange: [0, 0] };
+    const n = Math.round(Math.min(700, Math.max(120, (s.w * secH) / 1100)));
+    const [top, bottom] = visibleRange(s);
+    for (let i = 0; i < n; i++) state.parts.push(vortex.spawn({}, s.w, top, bottom));
+    if (reduceMotion) for (let i = 0; i < 14; i++) vortex.advance(state, s.w, top, bottom, phases(0), 0.08, false);
     return state;
   },
-  spawn(p, state, w, h) {
-    return Object.assign(p, { x: Math.random() * w, y: state.top + Math.random() * h, life: 1.5 + Math.random() * 4, trail: [] });
+  spawn(p, w, top, bottom) {
+    p.x = Math.random() * w;
+    p.y = top + Math.random() * (bottom - top);
+    p.life = 1.5 + Math.random() * 4;
+    p.trail = [];
+    return p;
   },
-  advance(state, w, h, t, dt, respawn = true) {
-    for (const p of state.parts) {
-      const [u, v] = velocity(p.x, p.y, t);
-      p.x += u * VORTEX_SPEED * dt;
-      p.y += v * VORTEX_SPEED * dt;
+  // only as many particles as the on-screen slice of the section needs, so density stays even
+  active: (state, top, bottom) => Math.round(state.parts.length * clamp01((bottom - top) / state.secH)),
+  advance(state, w, top, bottom, ph, dt, respawn = true) {
+    const k = VORTEX_SPEED * dt, n = vortex.active(state, top, bottom);
+    // particles joining the active set start fresh, spread over what is on screen now
+    for (let i = state.live; i < n; i++) vortex.spawn(state.parts[i], w, top, bottom);
+    state.live = n;
+    for (let i = 0; i < n; i++) {
+      const p = state.parts[i];
+      const [u, v] = velocity(p.x, p.y, ph);
+      p.x += u * k;
+      p.y += v * k;
       p.life -= dt;
       p.trail.push(p.x, p.y);
       if (p.trail.length > 32) p.trail.splice(0, 2);
-      if (respawn && (p.life < 0 || p.x < -20 || p.x > w + 20 || p.y < state.top - 20 || p.y > state.top + h + 20))
-        vortex.spawn(p, state, w, h);
+      if (respawn && (p.life < 0 || p.x < -20 || p.x > w + 20 || p.y < top - 20 || p.y > bottom + 20))
+        vortex.spawn(p, w, top, bottom);
     }
   },
-  draw({ canvas, ctx, w, h, state }, t) {
-    const shift = parallaxShift(canvas);
-    state.top = -shift;
-    if (reduceMotion) t = 0;
-    else {
-      vortex.advance(state, w, h, t, Math.min(0.05, t - state.last));
-      state.last = t;
-    }
-    ctx.clearRect(0, 0, w, h);
-    ctx.save();
-    ctx.translate(0, shift);
-
-    // sample ψ on a grid covering the visible window of the plane
-    const g = 18, cols = Math.ceil(w / g) + 2, rows = Math.ceil(h / g) + 2;
-    const y0 = Math.floor(state.top / g) * g - g;
+  // streamlines (marching squares on a ψ grid) and critical points, for rows [y0, y1) of the plane
+  renderLayer(s, ph, y0, y1) {
+    const { w } = s, layer = s.state.layer, ctx = layer.getContext("2d");
+    const g = 18, cols = Math.ceil(w / g) + 2;
+    y0 = Math.floor(y0 / g) * g - g;
+    const rows = Math.ceil((y1 - y0) / g) + 2;
     const val = new Float32Array(cols * rows);
     for (let r = 0; r < rows; r++)
-      for (let c = 0; c < cols; c++) val[r * cols + c] = psi(c * g, y0 + r * g, t);
+      for (let c = 0; c < cols; c++) val[r * cols + c] = psi(c * g, y0 + r * g, ph);
+    ctx.clearRect(0, 0, w, s.h);
 
-    // streamlines: level sets of ψ
-    ctx.lineWidth = 1;
-    for (let L = -1.35; L < 1.4; L += 0.15) {
-      const zero = Math.abs(L) < 0.01;
-      ctx.strokeStyle = zero ? palette.accent : palette.faint;
-      ctx.globalAlpha = zero ? 0.5 : 0.42;
-      ctx.beginPath();
-      for (let r = 0; r < rows - 1; r++)
-        for (let c = 0; c < cols - 1; c++) {
-          const a = val[r * cols + c], b = val[r * cols + c + 1], cc = val[(r + 1) * cols + c + 1], d = val[(r + 1) * cols + c];
-          const segs = MS[(a > L) << 3 | (b > L) << 2 | (cc > L) << 1 | (d > L)];
-          if (!segs.length) continue;
-          const x = c * g, y = y0 + r * g;
-          const pt = (e) =>
-            e === 0 ? [x + (g * (L - a)) / (b - a), y]
-            : e === 1 ? [x + g, y + (g * (L - b)) / (cc - b)]
-            : e === 2 ? [x + (g * (L - d)) / (cc - d), y + g]
-            : [x, y + (g * (L - a)) / (d - a)];
-          for (const [e1, e2] of segs) {
-            const p1 = pt(e1), p2 = pt(e2);
-            ctx.moveTo(p1[0], p1[1]);
-            ctx.lineTo(p2[0], p2[1]);
+    // every level set crossing each cell, collected into one path (plus the ψ = 0 separatrix web)
+    const STEP = 0.15, lines = new Path2D(), zero = new Path2D();
+    for (let r = 0; r < rows - 1; r++)
+      for (let c = 0; c < cols - 1; c++) {
+        const a = val[r * cols + c], b = val[r * cols + c + 1], cc = val[(r + 1) * cols + c + 1], d = val[(r + 1) * cols + c];
+        const lo = Math.min(a, b, cc, d), hi = Math.max(a, b, cc, d), x = c * g, y = y0 + r * g;
+        for (let i = Math.ceil(lo / STEP); i * STEP < hi; i++) {
+          const L = i * STEP, path = i === 0 ? zero : lines;
+          const ex = [x + (g * (L - a)) / (b - a), x + g, x + (g * (L - d)) / (cc - d), x];
+          const ey = [y, y + (g * (L - b)) / (cc - b), y + g, y + (g * (L - a)) / (d - a)];
+          for (const [e1, e2] of MS[(a > L) << 3 | (b > L) << 2 | (cc > L) << 1 | (d > L)]) {
+            path.moveTo(ex[e1], ey[e1]);
+            path.lineTo(ex[e2], ey[e2]);
           }
         }
-      ctx.stroke();
-    }
-
-    // particles riding the flow, trails tapered in four alpha bands
-    ctx.strokeStyle = palette.accent;
-    ctx.lineWidth = 1.3;
-    ctx.lineCap = "round";
-    for (let q = 0; q < 4; q++) {
-      ctx.globalAlpha = 0.1 + 0.15 * q;
-      ctx.beginPath();
-      for (const p of state.parts) {
-        const tr = p.trail, n = tr.length / 2;
-        for (let i = 1; i < n; i++) {
-          if (Math.floor((i / n) * 4) !== q) continue;
-          ctx.moveTo(tr[2 * i - 2], tr[2 * i - 1]);
-          ctx.lineTo(tr[2 * i], tr[2 * i + 1]);
-        }
       }
-      ctx.stroke();
-    }
-    ctx.lineCap = "butt";
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = palette.faint;
+    ctx.globalAlpha = 0.42;
+    ctx.stroke(lines);
+    ctx.strokeStyle = palette.accent;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke(zero);
 
     // critical points: local minima of |∇ψ|, refined by a Newton step, classified by the Hessian
+    const m = (r, c) => {
+      const gx = val[r * cols + c + 1] - val[r * cols + c - 1], gy = val[(r + 1) * cols + c] - val[(r - 1) * cols + c];
+      return gx * gx + gy * gy;
+    };
+    const centers = new Path2D(), hubs = new Path2D(), saddles = new Path2D();
     for (let r = 1; r < rows - 1; r++)
       for (let c = 1; c < cols - 1; c++) {
-        const at = (dr, dc) => val[(r + dr) * cols + c + dc];
-        const m = (rr, cc2) => {
-          const gx = val[rr * cols + cc2 + 1] - val[rr * cols + cc2 - 1], gy = val[(rr + 1) * cols + cc2] - val[(rr - 1) * cols + cc2];
-          return gx * gx + gy * gy;
-        };
         const here = m(r, c);
         if (here > (0.3 * VK * 2 * g) ** 2) continue;
         let isMin = true;
@@ -294,6 +318,7 @@ const vortex = {
           for (let dc = -1; dc <= 1; dc++)
             if ((dr || dc) && r + dr > 0 && r + dr < rows - 1 && c + dc > 0 && c + dc < cols - 1 && m(r + dr, c + dc) < here) { isMin = false; break; }
         if (!isMin) continue;
+        const at = (dr, dc) => val[(r + dr) * cols + c + dc];
         const gx = (at(0, 1) - at(0, -1)) / (2 * g), gy = (at(1, 0) - at(-1, 0)) / (2 * g);
         const hxx = (at(0, 1) - 2 * at(0, 0) + at(0, -1)) / (g * g), hyy = (at(1, 0) - 2 * at(0, 0) + at(-1, 0)) / (g * g);
         const hxy = (at(1, 1) - at(1, -1) - at(-1, 1) + at(-1, -1)) / (4 * g * g);
@@ -303,35 +328,76 @@ const vortex = {
         if (Math.hypot(dx, dy) > g) continue;
         const px = c * g + dx, py = y0 + r * g + dy;
         if (det > 0) { // center: a vortex
-          ctx.globalAlpha = 0.85;
-          ctx.strokeStyle = palette.accent;
-          ctx.fillStyle = palette.accent;
-          ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.stroke();
-          ctx.beginPath(); ctx.arc(px, py, 1.6, 0, Math.PI * 2); ctx.fill();
+          centers.moveTo(px + 5, py); centers.arc(px, py, 5, 0, Math.PI * 2);
+          hubs.moveTo(px + 1.6, py); hubs.arc(px, py, 1.6, 0, Math.PI * 2);
         } else { // saddle: an x along the separatrices, where the Hessian's quadratic form vanishes
           const disc = Math.sqrt(hxy * hxy - hxx * hyy);
           const angles = Math.abs(hyy) > 1e-12
             ? [Math.atan((-hxy + disc) / hyy), Math.atan((-hxy - disc) / hyy)]
             : [Math.PI / 2, Math.atan2(-hxx, 2 * hxy)];
-          ctx.globalAlpha = 0.8;
-          ctx.strokeStyle = palette.muted;
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
           for (const th of angles) {
             const ux = Math.cos(th) * 7, uy = Math.sin(th) * 7;
-            ctx.moveTo(px - ux, py - uy);
-            ctx.lineTo(px + ux, py + uy);
+            saddles.moveTo(px - ux, py - uy);
+            saddles.lineTo(px + ux, py + uy);
           }
-          ctx.stroke();
         }
       }
-    ctx.restore();
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = palette.accent;
+    ctx.fillStyle = palette.accent;
+    ctx.stroke(centers);
+    ctx.fill(hubs);
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = palette.muted;
+    ctx.stroke(saddles);
+    ctx.globalAlpha = 1;
+  },
+  draw(s, t) {
+    const { ctx, w, h, state } = s;
+    if (reduceMotion) t = 0;
+    const ph = phases(t), [top, bottom] = visibleRange(s);
+    if (!reduceMotion) {
+      vortex.advance(state, w, top, bottom, ph, Math.min(0.05, t - state.last));
+      state.last = t;
+    }
+    const [lt, lb] = state.layerRange;
+    if (t - state.layerT >= LAYER_EVERY || state.layerKey !== paletteVersion || top < lt || bottom > lb) {
+      state.layerRange = [top - LAYER_MARGIN, bottom + LAYER_MARGIN];
+      vortex.renderLayer(s, ph, ...state.layerRange);
+      state.layerT = t;
+      state.layerKey = paletteVersion;
+    }
+
+    ctx.clearRect(0, 0, w, h);
+    blit(s, state.layer, top, bottom);
+
+    // particles riding the flow, trails tapered in four alpha bands
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 1.3;
+    ctx.lineCap = "round";
+    for (let q = 0; q < 4; q++) {
+      ctx.globalAlpha = 0.1 + 0.15 * q;
+      ctx.beginPath();
+      for (let j = 0, m = vortex.active(state, top, bottom); j < m; j++) {
+        const tr = state.parts[j].trail, n = tr.length / 2;
+        for (let i = Math.max(1, Math.ceil((q * n) / 4)); i < n && Math.floor((i / n) * 4) === q; i++) {
+          ctx.moveTo(tr[2 * i - 2], tr[2 * i - 1]);
+          ctx.lineTo(tr[2 * i], tr[2 * i + 1]);
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.lineCap = "butt";
     ctx.globalAlpha = 1;
   },
 };
+// marching-squares segments per corner mask (tl=8, tr=4, br=2, bl=1); edges: 0 top, 1 right, 2 bottom, 3 left
+const MS = [[], [[3, 2]], [[2, 1]], [[3, 1]], [[0, 1]], [[3, 0], [2, 1]], [[0, 2]], [[3, 0]],
+  [[3, 0]], [[0, 2]], [[0, 1], [3, 2]], [[0, 1]], [[3, 1]], [[2, 1]], [[3, 2]], []];
 
-// --- Projects: Dijkstra's wavefront grows a shortest-path tree, then backtracks parents from t to s
+// --- Projects: Dijkstra's wavefront grows a shortest-path tree, then backtracks parents from t to s.
+// The graph itself never changes, so it lives on a cached layer; each frame draws only the search.
 const dijkstra = (nodes, src) => {
   const n = nodes.length, dist = new Array(n).fill(Infinity), parent = new Array(n).fill(-1), done = new Array(n).fill(false);
   dist[src] = 0;
@@ -346,16 +412,16 @@ const dijkstra = (nodes, src) => {
 };
 const WAVE = 240, TRACE = 1.2, HOLD = 2.6, FADE = 0.9;
 const graph = {
-  setup({ w, h }) {
-    // extend above and below the canvas by as much plane as the parallax can reveal
-    const sp = 104, E = reduceMotion ? 0 : (PARALLAX * (h + innerHeight)) / 2 + sp;
-    const cols = Math.ceil(w / sp) + 1, rows = Math.ceil((h + 2 * E) / sp) + 1;
+  fps: 30,
+  maxDpr: 1,
+  setup(s) {
+    const { w, h } = s, sp = 104, cols = Math.ceil(w / sp) + 1, rows = Math.ceil(h / sp) + 1;
     const nodes = [], idx = new Map(), edges = [];
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++)
         if (Math.random() < 0.85) {
           idx.set(r * cols + c, nodes.length);
-          nodes.push({ x: c * sp + (Math.random() - 0.5) * sp * 0.6, y: r * sp - E + (Math.random() - 0.5) * sp * 0.6, adj: [] });
+          nodes.push({ x: c * sp + (Math.random() - 0.5) * sp * 0.6, y: r * sp + (Math.random() - 0.5) * sp * 0.6, adj: [] });
         }
     const at = (r, c) => (r < rows && c < cols ? idx.get(r * cols + c) : undefined);
     const link = (a, b) => {
@@ -375,17 +441,33 @@ const graph = {
           else link(at(r, c + 1), at(r + 1, c));
         }
       }
-    return { nodes, edges, run: null };
+    return { nodes, edges, run: null, layer: makeLayer(s), layerKey: -1 };
   },
-  newRun({ nodes }, canvas, shift, t) {
+  renderLayer({ w, h, state }) {
+    const { nodes, edges, layer } = state, ctx = layer.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = palette.faint;
+    ctx.globalAlpha = 0.28;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const [a, b] of edges) { ctx.moveTo(nodes[a].x, nodes[a].y); ctx.lineTo(nodes[b].x, nodes[b].y); }
+    ctx.stroke();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = palette.bg;
+    ctx.beginPath();
+    for (const n of nodes) { ctx.moveTo(n.x + 2.5, n.y); ctx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); }
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+  newRun({ canvas, w, state: { nodes } }, t) {
     // pick s and t on screen, clear of the project visuals and card text, so the endpoints stay visible
-    const origin = canvas.getBoundingClientRect();
-    const cards = [...canvas.parentElement.querySelectorAll(".card__media, .card__body > *")].map((c) => c.getBoundingClientRect());
+    const c = canvas.getBoundingClientRect(), sec = canvas.closest("section").getBoundingClientRect();
+    const blocked = [...canvas.closest("section").querySelectorAll(".card__media, .card__body > *")].map((el) => el.getBoundingClientRect());
     const open = (n) => {
-      const y = n.y + shift, sy = origin.top + y;
-      return n.x > 30 && n.x < origin.width - 110 && sy > 90 && sy < innerHeight - 60 && !cards.some((r) =>
-        n.x > r.left - origin.left - 12 && n.x < r.right - origin.left + 12 &&
-        y > r.top - origin.top - 12 && y < r.bottom - origin.top + 12);
+      const sx = c.left + n.x, sy = c.top + n.y;
+      return n.x > 30 && n.x < w - 110 && sy > Math.max(90, sec.top + 60) && sy < Math.min(innerHeight, sec.bottom) - 60 &&
+        !blocked.some((r) => sx > r.left - 12 && sx < r.right + 12 && sy > r.top - 12 && sy < r.bottom + 12);
     };
     let pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length && open(nodes[i]));
     if (pool.length < 2) pool = nodes.map((_, i) => i).filter((i) => nodes[i].adj.length);
@@ -406,33 +488,19 @@ const graph = {
     return best;
   },
   draw(s, t) {
-    const { ctx, w, h } = s, shift = parallaxShift(s.canvas);
-    ctx.clearRect(0, 0, w, h);
-    ctx.save();
-    ctx.translate(0, shift);
-    graph.paint(s, shift, t);
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  },
-  paint({ canvas, ctx, state }, shift, t) {
-    const { nodes, edges } = state;
-    if (!state.run) state.run = graph.newRun(state, canvas, shift, t);
-    const run = state.run;
-
-    // base graph
-    ctx.strokeStyle = palette.faint;
-    ctx.globalAlpha = 0.28;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (const [a, b] of edges) { ctx.moveTo(nodes[a].x, nodes[a].y); ctx.lineTo(nodes[b].x, nodes[b].y); }
-    ctx.stroke();
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = palette.bg;
-    for (const n of nodes) {
-      ctx.beginPath(); ctx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    const { ctx, w, h, state } = s, { nodes } = state;
+    if (state.layerKey !== paletteVersion) {
+      graph.renderLayer(s);
+      state.layerKey = paletteVersion;
     }
-    if (!run) return;
+    const [top, bottom] = visibleRange(s);
+    // clear a margin past the visible rows too, so nothing stale is waiting there when it scrolls into view
+    ctx.clearRect(0, top - 200, w, bottom - top + 400);
+    blit(s, state.layer, top, bottom);
 
+    if (!state.run) state.run = graph.newRun(s, t);
+    const run = state.run;
+    if (!run) return;
     const { dist, parent, src, tgt, path } = run;
     const reach = dist[tgt] / WAVE;
     let e = t - run.start;
@@ -455,17 +523,19 @@ const graph = {
     });
     ctx.stroke();
 
+    // settled nodes, plus a glow on the frontier
     ctx.fillStyle = palette.accent;
-    nodes.forEach((n, v) => {
-      if (dist[v] > r) return;
-      ctx.globalAlpha = 0.55 * fade;
-      ctx.beginPath(); ctx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); ctx.fill();
-      const age = r - dist[v];
-      if (e < reach && age < 90) { // frontier glow
+    ctx.globalAlpha = 0.55 * fade;
+    ctx.beginPath();
+    nodes.forEach((n, v) => { if (dist[v] <= r) { ctx.moveTo(n.x + 2.5, n.y); ctx.arc(n.x, n.y, 2.5, 0, Math.PI * 2); } });
+    ctx.fill();
+    if (e < reach)
+      nodes.forEach((n, v) => {
+        const age = r - dist[v];
+        if (age < 0 || age >= 90) return;
         ctx.globalAlpha = 0.18 * (1 - age / 90) * fade;
         ctx.beginPath(); ctx.arc(n.x, n.y, 4 + age / 8, 0, Math.PI * 2); ctx.fill();
-      }
-    });
+      });
 
     // backtrack parent pointers from t to s
     if (e > reach) {
@@ -504,10 +574,24 @@ const graph = {
 const painters = { tesseract, vortex, graph };
 document.querySelectorAll("canvas[data-scene]").forEach((c) => mountScene(c, painters[c.dataset.scene]));
 if (!reduceMotion) {
+  // fallback parallax for browsers without scroll-driven animations: move the layers from JS, only on change
   const circuit = document.querySelector(".bg-layer__tile");
+  const arts = artSections.map((sec) => sec.querySelector(".section__art canvas"));
+  let lastScroll = -1;
   const frame = (now) => {
-    circuit.style.transform = `translate3d(0, ${scrollY * PARALLAX}px, 0)`;
-    scenes.forEach((s) => s.visible && s.paint(now / 1000));
+    if (!cssParallax && scrollY !== lastScroll) {
+      lastScroll = scrollY;
+      circuit.style.transform = `translate3d(0, ${scrollY * PARALLAX}px, 0)`;
+      artSections.forEach((sec, i) => {
+        const r = sec.getBoundingClientRect();
+        arts[i].style.transform = `translate3d(0, ${-(r.top + r.height / 2 - innerHeight / 2) * PARALLAX}px, 0)`;
+      });
+    }
+    for (const s of scenes)
+      if (s.visible && now - s.lastPaint >= s.interval - 4) {
+        s.lastPaint = now;
+        s.paint(now / 1000);
+      }
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
