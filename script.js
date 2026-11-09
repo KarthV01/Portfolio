@@ -296,6 +296,18 @@ function engineDrawing() {
 function setState(next) {
   state = next;
   document.body.dataset.state = next;
+  document.querySelector('meta[name="theme-color"]').content =
+    next === "inspecting" ? "#171d1c" : "#fafaf9";
+  fitEngine();
+}
+function fitEngine() {
+  // Crop unused drafting margins on constrained screens, keeping parts legible.
+  $("engine").setAttribute(
+    "viewBox",
+    state !== "intro" && (innerWidth <= 760 || innerHeight < 500)
+      ? "0 100 950 560"
+      : "0 0 1000 760",
+  );
 }
 function renderCommand() {
   const c = commands[step];
@@ -487,6 +499,7 @@ const canvas = $("explosion"),
 let cw = 0,
   ch = 0;
 function resize() {
+  fitEngine();
   cw = innerWidth;
   ch = innerHeight;
   const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -521,13 +534,16 @@ function frame(time) {
   const dt = Math.min((time - lastTime) / 1000 || 0, 0.04);
   lastTime = time;
   rpm += (targetRpm - rpm) * Math.min(1, dt * 3.5);
-  phase += ((dt * rpm) / 60) * Math.PI * 2;
+  if (Math.abs(targetRpm - rpm) < 2) rpm = targetRpm;
+  // Slow the visual cycle so individual strokes remain readable at high RPM.
+  phase += ((dt * rpm) / 60) * Math.PI * 2 * 0.12;
   exploded += (explodeTarget - exploded) * Math.min(1, dt * 4.5);
   const motion = reducedMotion.matches ? 0 : 1;
-  parts.forEach((p) =>
+  const vibration = motion * (1 - exploded) * Math.pow(rpm / 8000, 2);
+  parts.forEach((p, i) =>
     $(`part-${p.id}`).setAttribute(
       "transform",
-      `translate(${p.dx * exploded} ${p.dy * exploded})`,
+      `translate(${p.dx * exploded + Math.sin(time * 0.08) * vibration} ${p.dy * exploded + Math.sin(time / 1600 + i) * 1.5 * exploded * motion + Math.cos(time * 0.11) * vibration})`,
     ),
   );
   document.querySelectorAll(".piston").forEach((g, i) => {
@@ -619,18 +635,52 @@ addEventListener("keydown", (e) => {
     skip();
     return;
   }
+  if (
+    state === "inspecting" &&
+    e.key.startsWith("Arrow") &&
+    !e.target.closest("input,textarea,select")
+  ) {
+    e.preventDefault();
+    navigate(e.key);
+    return;
+  }
   if (interactive) return;
   if (e.key === "Enter") {
     e.preventDefault();
     state === "inspecting" ? selectPart(selected + 1) : execute();
   }
-  if (state === "inspecting" && e.key.startsWith("Arrow")) {
-    e.preventDefault();
-    navigate(e.key);
-  }
   if (e.key.toLowerCase() === "r" && state === "inspecting") replay();
 });
 addEventListener("resize", resize);
+let touchStart = null;
+$("engine").addEventListener(
+  "touchstart",
+  (e) => {
+    if (e.touches.length === 1)
+      touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  },
+  { passive: true },
+);
+$("engine").addEventListener(
+  "touchend",
+  (e) => {
+    if (!touchStart || state !== "inspecting") return;
+    const dx = e.changedTouches[0].clientX - touchStart.x,
+      dy = e.changedTouches[0].clientY - touchStart.y;
+    touchStart = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 35)
+      navigate(
+        Math.abs(dx) > Math.abs(dy)
+          ? dx > 0
+            ? "ArrowRight"
+            : "ArrowLeft"
+          : dy > 0
+            ? "ArrowDown"
+            : "ArrowUp",
+      );
+  },
+  { passive: true },
+);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden && gain)
     gain.gain.setTargetAtTime(0, audioContext.currentTime, 0.05);

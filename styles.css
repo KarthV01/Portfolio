@@ -19,6 +19,7 @@ body {
   margin: 0;
   height: 100dvh;
   overflow: hidden;
+  color: var(--ink);
   transition:
     background 1s,
     color 1s;
@@ -110,6 +111,7 @@ main {
   position: absolute;
   inset: 95px 0 65px;
   isolation: isolate;
+  overflow: clip;
 }
 .scene-heading {
   position: absolute;
@@ -645,7 +647,7 @@ body[data-state="inspecting"] .scene-heading h1 {
   font-size: 30px;
 }
 body[data-state="inspecting"] .terminal-content {
-  min-height: 270px;
+  min-height: min(270px, calc(100dvh - 310px));
 }
 body[data-state="inspecting"] .code-preamble {
   display: none;
@@ -751,6 +753,12 @@ body[data-state="inspecting"] .code-preamble {
     height: 65%;
     top: 0;
   }
+  body:not([data-state="intro"]) .engine-stage svg {
+    overflow: hidden;
+  }
+  .part-id {
+    display: none;
+  }
   .drawing-meta {
     font-size: 6px;
     top: 29%;
@@ -800,15 +808,20 @@ body[data-state="inspecting"] .code-preamble {
     width: 88%;
     max-width: none;
     transform: none;
+    height: min(330px, 40dvh);
+    display: flex;
+    flex-direction: column;
   }
   body:not([data-state="intro"]) .engine-stage {
     left: 1%;
     width: 98%;
-    height: 57%;
-    top: 0;
+    height: calc(100% - min(330px, 40dvh) - 105px);
+    top: 55px;
   }
   body:not([data-state="intro"]) .terminal-content {
-    max-height: 21dvh;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     padding: 16px 20px;
   }
   body:not([data-state="intro"]) .code-preamble {
@@ -825,10 +838,12 @@ body[data-state="inspecting"] .code-preamble {
   }
   .terminal-bar {
     height: 33px;
+    flex-shrink: 0;
   }
   .telemetry {
     padding: 9px 20px;
     gap: 18px;
+    flex-shrink: 0;
   }
   .telemetry strong {
     font-size: 13px;
@@ -838,6 +853,7 @@ body[data-state="inspecting"] .code-preamble {
   }
   .terminal-footer {
     height: 43px;
+    flex-shrink: 0;
   }
   .command-line {
     font-size: 11px;
@@ -845,8 +861,8 @@ body[data-state="inspecting"] .code-preamble {
   .component-nav {
     left: 4%;
     right: 4%;
-    bottom: auto;
-    top: 49%;
+    bottom: calc(min(330px, 40dvh) + 20px);
+    top: auto;
     gap: 1px;
   }
   .component-nav button {
@@ -854,10 +870,7 @@ body[data-state="inspecting"] .code-preamble {
     padding: 6px;
   }
   .part-caption {
-    left: auto;
-    right: 8%;
-    bottom: 0;
-    gap: 3px;
+    display: none;
   }
   .part-caption strong {
     font-size: 15px;
@@ -866,12 +879,10 @@ body[data-state="inspecting"] .code-preamble {
     display: none;
   }
   body[data-state="inspecting"] .drawing-meta {
-    top: 27%;
+    display: none;
   }
   body[data-state="inspecting"] .scene-caption {
-    bottom: 0;
-    left: 6%;
-    right: 50%;
+    display: none;
   }
   .scene-caption .scale {
     display: none;
@@ -881,7 +892,7 @@ body[data-state="inspecting"] .code-preamble {
   }
   body[data-state="inspecting"] .terminal-content {
     min-height: 0;
-    max-height: 23dvh;
+    max-height: none;
   }
   .inspection h2 {
     font-size: 21px;
@@ -899,6 +910,60 @@ body[data-state="inspecting"] .code-preamble {
   }
   .inspection .project p {
     font-size: 10px;
+  }
+}
+@media (max-height: 500px) and (min-width: 761px) {
+  .terminal-content {
+    max-height: calc(100dvh - 280px);
+    padding: 14px 20px;
+  }
+  .terminal-intro h2 {
+    font-size: 22px;
+    margin: 8px 0;
+  }
+  .terminal-intro p {
+    margin-bottom: 12px;
+  }
+  .scene-heading {
+    top: 2%;
+  }
+  body[data-state="inspecting"] .scene-heading h1 {
+    font-size: 20px;
+    margin: 5px 0;
+  }
+  .engine-stage svg {
+    top: 12%;
+    height: 77%;
+  }
+  .drawing-meta,
+  .part-caption {
+    display: none;
+  }
+  body[data-state="inspecting"] .scene-caption {
+    bottom: 19%;
+  }
+  .inspection h2 {
+    font-size: 20px;
+  }
+  .component-nav {
+    gap: 1px;
+  }
+  .component-nav button {
+    font-size: 7px;
+    padding: 6px;
+  }
+}
+body[data-state="intro"] .engine-detail > path {
+  animation: trace-in 2s ease-out both;
+}
+@keyframes trace-in {
+  from {
+    stroke-dasharray: 900;
+    stroke-dashoffset: 900;
+  }
+  to {
+    stroke-dasharray: 900;
+    stroke-dashoffset: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
