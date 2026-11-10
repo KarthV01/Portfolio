@@ -262,7 +262,7 @@ main {
 }
 .terminal-content {
   padding: 29px 28px 24px;
-  max-height: calc(100dvh - 310px);
+  max-height: calc(100dvh - 340px);
   overflow: auto;
   scrollbar-width: thin;
 }
@@ -968,7 +968,7 @@ body[data-state="inspecting"] .assembly {
   position: absolute;
   inset: 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 65px);
 }
 .showroom-halo {
   position: absolute;

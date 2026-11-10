@@ -2,6 +2,9 @@
 // Coordinates: crankshaft along Z, two four-cylinder banks at +/-45 degrees.
 import * as T from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 const colors = {
   alloy: 0xe8e9e7,
@@ -19,10 +22,12 @@ const mat = Object.fromEntries(
     new T.MeshBasicMaterial({ color: name === "accent" ? 0x244fba : 0x14171d }),
   ]),
 );
-const ink = new T.LineBasicMaterial({
+const ink = new LineMaterial({
   color: 0xe2eaff,
   transparent: true,
   opacity: 0.95,
+  linewidth: 6,
+  resolution: new T.Vector2(2400, 1920),
 });
 const hull = new T.MeshBasicMaterial({ color: 0xb5c9ee, side: T.BackSide });
 const Y = new T.Vector3(0, 1, 0);
@@ -40,10 +45,27 @@ function mesh(
   object.position.set(...pos);
   parent.add(object);
   if (edges)
-    object.add(new T.LineSegments(new T.EdgesGeometry(geometry, 32), ink));
+    object.add(
+      new LineSegments2(
+        new LineSegmentsGeometry().fromEdgesGeometry(
+          new T.EdgesGeometry(geometry, 24),
+        ),
+        ink,
+      ),
+    );
   // Inverted surface hulls give curved parts their technical-illustration silhouette.
-  const outline = new T.Mesh(geometry, hull);
-  outline.scale.setScalar(1.012);
+  const contour = geometry.clone();
+  const positions = contour.attributes.position;
+  const normals = contour.attributes.normal;
+  for (let i = 0; i < positions.count; i++) {
+    positions.setXYZ(
+      i,
+      positions.getX(i) + normals.getX(i) * 0.008,
+      positions.getY(i) + normals.getY(i) * 0.008,
+      positions.getZ(i) + normals.getZ(i) * 0.008,
+    );
+  }
+  const outline = new T.Mesh(contour, hull);
   object.add(outline);
   return object;
 }
@@ -264,71 +286,6 @@ function plug() {
   ring(g, 0.085, 0.012, [0, 0.35, 0], "gasket");
   return g;
 }
-function pistonUnit() {
-  const g = new T.Group();
-  lathe(g, [
-    [0.34, -0.23],
-    [0.39, -0.18],
-    [0.39, 0.16],
-    [0.397, 0.2],
-    [0.397, 0.23],
-    [0.35, 0.245],
-    [0.28, 0.215],
-    [0, 0.215],
-  ]);
-  for (const y of [0.08, 0.135, 0.19]) ring(g, 0.395, 0.012, [0, y, 0], "dark");
-  const pin = cyl(g, 0.09, 0.78, [0, -0.07, 0], "steel");
-  pin.rotation.z = Math.PI / 2;
-  // Forged connecting rod: flanged I-section with a bored big end.
-  box(g, 0.13, 0.78, 0.11, [0, -0.65, 0], "steel");
-  for (const z of [-0.065, 0.065])
-    box(g, 0.22, 0.82, 0.035, [0, -0.65, z], "machined");
-  ring(g, 0.195, 0.075, [0, -1.08, 0], "machined", "z");
-  ring(g, 0.14, 0.018, [0, -1.08, 0.073], "steel", "z");
-  box(g, 0.45, 0.105, 0.23, [0, -1.24, 0]);
-  for (const x of [-0.2, 0.2]) {
-    bolt(g, [x, -1.18, 0]);
-    rod(g, [x, -1.34, 0], [x, -1.11, 0], 0.035);
-  }
-  return g;
-}
-function crankshaft() {
-  const g = new T.Group();
-  const shaft = cyl(g, 0.16, 5.45, [0, 0, 0], "steel");
-  shaft.rotation.x = Math.PI / 2;
-  for (let i = 0; i < 5; i++) {
-    const z = -2.04 + i * 1.02;
-    const bearing = cyl(g, 0.245, 0.28, [0, 0, z]);
-    bearing.rotation.x = Math.PI / 2;
-    ring(g, 0.245, 0.012, [0, 0, z + 0.1], "dark", "z");
-  }
-  zs.forEach((z, i) => {
-    const offset = (i === 0 || i === 3 ? 1 : -1) * 0.32;
-    for (const dz of [-0.32, 0.32]) {
-      // Rounded counterweights opposite each flat-plane throw.
-      const w = cyl(g, 0.41, 0.16, [0, -offset * 0.6, z + dz], "steel");
-      w.rotation.x = Math.PI / 2;
-      box(g, 0.36, 0.55, 0.15, [0, offset * 0.25, z + dz], "steel", 0.07);
-    }
-    const pin = cyl(g, 0.18, 0.49, [0, offset, z]);
-    pin.rotation.x = Math.PI / 2;
-    for (const dz of [-0.2, 0.2])
-      ring(g, 0.18, 0.01, [0, offset, z + dz], "dark", "z");
-  });
-  const flange = cyl(g, 0.49, 0.18, [0, 0, 2.68]);
-  flange.rotation.x = Math.PI / 2;
-  for (let i = 0; i < 8; i++) {
-    const a = (i * Math.PI) / 4;
-    bolt(g, [0.35 * Math.cos(a), 0.35 * Math.sin(a), 2.79], "z");
-  }
-  const pulley = cyl(g, 0.55, 0.24, [0, 0, -2.73], "dark");
-  pulley.rotation.x = Math.PI / 2;
-  for (const z of [-2.85, -2.77, -2.69])
-    ring(g, 0.55, 0.018, [0, 0, z], "steel", "z");
-  const hub = cyl(g, 0.17, 0.28, [0, 0, -2.78]);
-  hub.rotation.x = Math.PI / 2;
-  return g;
-}
 function intake() {
   const g = new T.Group();
   for (const side of [-1, 1]) {
@@ -478,55 +435,7 @@ function ecu() {
   return g;
 }
 
-export function createModel() {
-  const root = new T.Group(),
-    groups = {
-      block: block(),
-      head: heads(),
-      crank: crankshaft(),
-      intake: intake(),
-      headers: headers(),
-      transmission: transmission(),
-      ecu: ecu(),
-      spark: new T.Group(),
-      pistons: new T.Group(),
-    };
-  const pistonNodes = [];
-  for (const side of [-1, 1]) {
-    const pb = bank(groups.pistons, side),
-      sb = bank(groups.spark, side);
-    zs.forEach((z, i) => {
-      const p = pistonUnit();
-      p.position.set(0, 1.37, z);
-      pb.add(p);
-      pistonNodes.push({ object: p, i, side });
-      const s = plug();
-      s.position.set(0, 1.95, z);
-      sb.add(s);
-    });
-  }
-  groups.ecu.position.set(-2.3, 0.25, -1.1);
-  groups.ecu.rotation.z = Math.PI / 2;
-  Object.entries(groups).forEach(([name, g]) => {
-    g.name = name;
-    root.add(g);
-  });
-  function pose(phase) {
-    groups.crank.rotation.z = phase;
-    pistonNodes.forEach(({ object, i, side }) => {
-      const theta =
-        phase + (i === 0 || i === 3 ? 0 : Math.PI) + (side * Math.PI) / 4;
-      object.position.y = 1.37 + 0.2 * Math.cos(theta);
-      object.children[0].material =
-        Math.cos(theta) > 0.88 ? mat.firing : mat.machined;
-    });
-  }
-  return { root, groups, pose };
-}
-
 export function createDisplay(id) {
-  const model = createModel();
-  if (id === "engine") return { root: model.root, pose: model.pose };
   if (id === "spark") {
     const root = new T.Group(),
       s = plug();
@@ -535,17 +444,12 @@ export function createDisplay(id) {
     root.add(s);
     return { root, pose: () => {} };
   }
-  if (id === "pistons") {
-    // Exposed eight-piston / flat-plane crank assembly, matching the reference.
-    const root = new T.Group();
-    root.add(model.groups.pistons, model.groups.crank);
-    return { root, pose: model.pose };
-  }
-  const root = model.groups[id];
+  // Moving components are drawn by engine-drawing.js from mechanics.js.
+  const root = { head: heads, block, intake, headers, transmission, ecu }[id]();
   root.position.set(0, 0, 0);
   root.rotation.set(0, 0, 0);
   return {
     root,
-    pose: id === "crank" ? (phase) => (root.rotation.z = phase) : () => {},
+    pose: () => {},
   };
 }

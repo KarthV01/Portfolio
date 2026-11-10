@@ -98,6 +98,26 @@ const server = http.createServer((req, res) => {
         () => !document.getElementById("execute").disabled,
       );
       if (step === 0) {
+        const performanceSample = await page.evaluate(async () => {
+          const draw = EngineDrawing.prototype.draw;
+          const costs = [];
+          EngineDrawing.prototype.draw = function () {
+            const start = performance.now();
+            draw.call(this);
+            costs.push(performance.now() - start);
+          };
+          const start = performance.now();
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          const elapsed = performance.now() - start;
+          EngineDrawing.prototype.draw = draw;
+          return {
+            fps: Math.round((costs.length * 1000) / elapsed),
+            meanDrawMs: Number(
+              (costs.reduce((a, b) => a + b, 0) / costs.length).toFixed(2),
+            ),
+          };
+        });
+        console.log("Opening animation sample:", performanceSample);
         const before = await page
           .locator("#assembly")
           .getAttribute("data-phase");
@@ -223,6 +243,7 @@ const server = http.createServer((req, res) => {
       { width: 1024, height: 768 },
     ]) {
       await page.setViewportSize(viewport);
+      await page.locator('[data-part="2"]').click();
       await page.waitForTimeout(1500);
       await page.screenshot({
         path: path.join(artifacts, `${viewport.width}x${viewport.height}.png`),

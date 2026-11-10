@@ -140,12 +140,17 @@ class EngineDrawing {
     for (const h of [0.1, 0.16, 0.22]) this.path(ring(h), color);
     this.path(ring(0.22), color, firing ? this.pulse : this.paper, 1.4, true);
     // Valve reliefs, lightly etched into the crown.
-    for (const x of [-0.19, 0.19]) {
+    for (const [x, z] of [
+      [-0.19, -0.17],
+      [-0.19, 0.17],
+      [0.19, -0.17],
+      [0.19, 0.17],
+    ]) {
       const pts = Array.from({ length: 17 }, (_, i) =>
         local(
           x + 0.115 * Math.cos((i / 16) * Math.PI * 2),
           0.225,
-          0.115 * Math.sin((i / 16) * Math.PI * 2),
+          z + 0.115 * Math.sin((i / 16) * Math.PI * 2),
         ),
       );
       this.path(pts, firing ? this.blue : this.faint);

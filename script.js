@@ -430,7 +430,7 @@ function tickTelemetry(time) {
   if (Math.abs(targetRpm - rpm) < 3) rpm = targetRpm;
   if (time - lastSample > 80 || rpm === targetRpm) {
     $("rpm").textContent = String(Math.round(rpm / 10) * 10).padStart(4, "0");
-    $("rpm-bar").style.width = `${rpm / 90}%`;
+    $("rpm-bar").style.width = `${rpm / 86}%`;
     lastSample = time;
   }
   if (gain && audioContext) {
