@@ -134,10 +134,10 @@ function syncMechanisms() {
   const animate = !reducedMotion.matches && !document.hidden;
   assemblyDrawing.setSpeed(
     animate && (state === "running" || state === "redlining")
-      ? 2.2 + targetRpm / 1800
+      ? 8 + targetRpm / 650
       : 0,
   );
-  componentDrawing?.setSpeed(animate ? 2.8 : 0);
+  componentDrawing?.setSpeed(animate ? 10 : 0);
 }
 
 function loadImage(url) {

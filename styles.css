@@ -959,7 +959,7 @@ body[data-state="inspecting"] .assembly {
   object-fit: contain;
   user-select: none;
   pointer-events: none;
-  filter: drop-shadow(0 24px 22px #00000020);
+  filter: none;
 }
 .component-card.has-motion img {
   opacity: 0;
@@ -971,6 +971,7 @@ body[data-state="inspecting"] .assembly {
   height: calc(100% - 65px);
 }
 .showroom-halo {
+  display: none;
   position: absolute;
   width: 72%;
   height: 70%;

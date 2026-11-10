@@ -19,7 +19,7 @@ const colors = {
 const mat = Object.fromEntries(
   Object.entries(colors).map(([name, color]) => [
     name,
-    new T.MeshBasicMaterial({ color: name === "accent" ? 0x244fba : 0x14171d }),
+    new T.MeshBasicMaterial({ color: 0x14171d }),
   ]),
 );
 const ink = new LineMaterial({

@@ -97,8 +97,7 @@ class EngineDrawing {
     this.circle([x, y, z + length / 2], radius, "z", color, this.paper);
   }
   piston(p) {
-    const c = this.ctx,
-      s = Math.sin(p.angle),
+    const s = Math.sin(p.angle),
       co = Math.cos(p.angle);
     const local = (x, y, z) => [
       p.wrist[0] + co * x + s * y,
@@ -138,7 +137,7 @@ class EngineDrawing {
     for (const x of [-0.47, 0.47])
       this.path([local(x, -0.18, 0), local(x, 0.22, 0)], color);
     for (const h of [0.1, 0.16, 0.22]) this.path(ring(h), color);
-    this.path(ring(0.22), color, firing ? this.pulse : this.paper, 1.4, true);
+    this.path(ring(0.22), color, this.paper, 1.4, true);
     // Valve reliefs, lightly etched into the crown.
     for (const [x, z] of [
       [-0.19, -0.17],
@@ -155,11 +154,6 @@ class EngineDrawing {
       );
       this.path(pts, firing ? this.blue : this.faint);
     }
-    const label = this.project(local(0, 0.38, 0));
-    c.fillStyle = firing ? this.blue : this.ink;
-    c.font = "500 11px 'JetBrains Mono', monospace";
-    c.textAlign = "center";
-    c.fillText(String(p.number), ...label);
   }
   crank() {
     for (let i = 0; i < 5; i++) this.journal(0, 0, -2.24 + i * 1.12, 0.2, 0.28);
@@ -217,8 +211,66 @@ class EngineDrawing {
     }
   }
   shell() {
-    // Sparse section boundaries frame the mechanism without hiding its motion.
+    // Sectioned cylinder sleeves, cam housings and crankcase casting details.
+    // Keep the cutaway open so the rods and firing crowns remain visible.
     for (const side of [-1, 1]) {
+      const bankPoint = (x, y, z) => [
+        (x + side * y) / Math.SQRT2,
+        (y - side * x) / Math.SQRT2,
+        z,
+      ];
+      for (let i = 0; i < 4; i++) {
+        const z = -1.68 + i * 1.12 + side * 0.11;
+        // Only the rear half of each bore wall is retained in the cutaway.
+        for (const height of [0.95, 2.18]) {
+          const arc = Array.from({ length: 25 }, (_, j) => {
+            const angle = Math.PI + (j / 24) * Math.PI;
+            return bankPoint(
+              0.51 * Math.cos(angle),
+              height,
+              z + 0.51 * Math.sin(angle),
+            );
+          });
+          this.path(arc, this.faint);
+        }
+        for (const x of [-0.51, 0.51])
+          this.path([bankPoint(x, 0.95, z), bankPoint(x, 2.18, z)], this.faint);
+        // Coil wells and deck fasteners above the cut cylinder bank.
+        this.circle([side * 1.23, 2.15, z], 0.09, "y", this.faint);
+        this.circle([side * 1.23, 2.15, z], 0.045, "y", this.faint);
+        // Curved intake runner: paired contours, no opaque plenum blocking the pistons.
+        for (const offset of [-0.065, 0.065]) {
+          const runner = Array.from({ length: 17 }, (_, j) => {
+            const t = j / 16;
+            return [
+              side * (0.25 + 0.78 * t),
+              2.28 + 0.17 * Math.sin(t * Math.PI) - 0.12 * t,
+              z + offset,
+            ];
+          });
+          this.path(runner, this.faint);
+        }
+        // Cast ribs along the lower crankcase.
+        this.path(
+          [
+            [side * 0.48, -0.56, z],
+            [side * 0.75, -0.35, z],
+            [side * 0.87, 0.15, z],
+          ],
+          this.faint,
+        );
+      }
+      for (const x of [0.99, 1.43]) {
+        for (const dy of [0, 0.09])
+          this.path(
+            [
+              [side * x, 1.98 + dy, -2.2],
+              [side * x, 1.98 + dy, 2.2],
+            ],
+            this.faint,
+          );
+        this.circle([side * x, 2.025, -2.2], 0.07, "z", this.faint);
+      }
       const outline = [
         [side * 0.45, -0.5, -2.2],
         [side * 1.65, 1.55, -2.2],
@@ -254,6 +306,29 @@ class EngineDrawing {
       ],
       this.faint,
     );
+    // Front timing cover perimeter and crank pulley, with fastening points.
+    this.path(
+      [
+        [-1.45, 1.62, -2.28],
+        [-1.64, 1.4, -2.28],
+        [-0.77, -0.52, -2.28],
+        [-0.45, -0.67, -2.28],
+        [0.45, -0.67, -2.28],
+        [0.77, -0.52, -2.28],
+        [1.64, 1.4, -2.28],
+        [1.45, 1.62, -2.28],
+      ],
+      this.faint,
+    );
+    for (const x of [-1.4, -0.65, 0.65, 1.4])
+      this.circle(
+        [x, Math.abs(x) > 0.8 ? 1.4 : -0.4, -2.29],
+        0.045,
+        "z",
+        this.faint,
+      );
+    for (const r of [0.31, 0.38, 0.43])
+      this.circle([0, 0, -2.9], r, "z", this.faint);
   }
   draw() {
     const rect = this.canvas.getBoundingClientRect();
@@ -278,7 +353,6 @@ class EngineDrawing {
     this.ink = dark ? "#cbd2df" : "#374151";
     this.faint = dark ? "#424c60" : "#c1c9d6";
     this.blue = dark ? "#5488ff" : "#285be8";
-    this.pulse = dark ? "#17336a" : "#d6e4ff";
     this.scale = Math.min(this.w / 7.6, this.h / 5.4);
     if (this.mode === "engine") this.shell();
     this.crank();
