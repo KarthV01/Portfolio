@@ -551,6 +551,7 @@ body:not([data-state="intro"]) .engine-stage {
   opacity: 1;
 }
 body:not([data-state="intro"]) .scene-heading {
+  left: calc(40% + 5.9%);
   opacity: 1;
   transform: none;
 }
@@ -618,7 +619,7 @@ body[data-state="inspecting"] .code-preamble {
     padding: 35px;
   }
   .scene-heading {
-    left: 48%;
+    left: calc(40% + 5.9%);
   }
 }
 @media (max-height: 720px) and (min-width: 761px) {
