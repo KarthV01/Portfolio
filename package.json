@@ -4,9 +4,13 @@
   "private": true,
   "description": "A terminal-driven, single-viewport engineering portfolio.",
   "scripts": {
-    "test": "node --check script.js && node tests/verify.cjs"
+    "test": "node --check script.js && node tests/verify.cjs",
+    "render:engine": "node tools/render-engine.mjs"
   },
   "devDependencies": {
-    "playwright": "1.65.0"
+    "playwright": "1.65.0",
+    "three": "0.187.0",
+    "esbuild": "0.28.2",
+    "sharp": "0.35.5"
   }
 }

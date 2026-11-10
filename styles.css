@@ -975,3 +975,115 @@ body[data-state="intro"] .engine-detail > path {
     scroll-behavior: auto !important;
   }
 }
+
+/* CAD artwork is pre-rendered. Only the selected item is mounted/animated. */
+.engine-display {
+  position: absolute;
+  inset: 10% 0 16%;
+  perspective: 1000px;
+  touch-action: pan-y;
+}
+.assembly {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: grayscale(1);
+  transition: opacity .45s, transform .65s cubic-bezier(.2,.8,.2,1);
+  user-select: none;
+}
+.engine-stage { color: #78828b; }
+body[data-state="intro"] .engine-stage { opacity: .42; width: 88%; left: 6%; }
+body[data-state="running"] .assembly { animation: engine-idle .16s linear infinite alternate; }
+body[data-state="redlining"] .assembly { animation: engine-redline .085s linear infinite alternate; }
+body[data-state="inspecting"] .assembly { opacity: 0; transform: scale(1.12); visibility: hidden; }
+.component-display { position: absolute; inset: 0; }
+.component-card {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  container-type: size;
+  backface-visibility: hidden;
+}
+.component-card img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 24px 22px #00000020);
+}
+.component-card.has-motion img { opacity: 0; }
+.mechanism-sprite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(100cqw, 125cqh);
+  height: min(100cqh, 80cqw);
+  transform: translate(-50%, -50%);
+  background-size: 1000% 100%;
+  background-repeat: no-repeat;
+  animation: mechanism-cycle 1s steps(10) infinite;
+}
+.showroom-halo {
+  position: absolute;
+  width: 72%;
+  height: 70%;
+  left: 14%;
+  top: 16%;
+  background: radial-gradient(ellipse, #8ba6c512, transparent 68%);
+  opacity: 0;
+  pointer-events: none;
+}
+body[data-state="inspecting"] .showroom-halo { opacity: 1; }
+body[data-state="inspecting"] .drawing-meta { top: 17%; font-size: 8px; opacity: .8; }
+body:not([data-state="inspecting"]) .drawing-meta { top: 24%; }
+body[data-state="inspecting"] .part-caption {
+  display: flex;
+  left: 5%;
+  right: 5%;
+  bottom: 13%;
+  align-items: center;
+  text-align: center;
+  gap: 9px;
+}
+.part-caption strong { font-size: 25px; letter-spacing: -.7px; }
+.part-caption > span:last-child { font-size: 8px; letter-spacing: 1.3px; }
+.selector-controls { position: absolute; left: 3%; right: 3%; top: 48%; display: flex; justify-content: space-between; z-index: 4; }
+.selector-arrow { width: 44px; height: 44px; border: 1px solid #56655d; border-radius: 50%; color: #dae3dd; background: #202a2677; font: 20px var(--mono); transition: background .2s, transform .2s; }
+.selector-arrow:hover { background: #35453e; transform: scale(1.07); }
+#selector-counter { display: none; }
+.component-nav button { font-size: 8px; }
+.component-nav button span { color: #708eae; }
+body[data-state="inspecting"] .scene-caption { display: none; }
+.is-background *, .is-background *::before, .is-background *::after { animation-play-state: paused !important; }
+@keyframes engine-idle { from { transform: translateY(0); } to { transform: translateY(.5px); } }
+@keyframes engine-redline { from { transform: translate(-.8px,.6px); } to { transform: translate(.8px,-.6px); } }
+@keyframes mechanism-cycle { to { background-position: 111.111111% 0; } }
+@media (max-width: 760px) {
+  body[data-state="intro"] .engine-stage { width: 135%; left: -17.5%; height: 80%; top: 8%; }
+  body:not([data-state="intro"]) .engine-stage { top: 54px; height: calc(100% - min(330px,40dvh) - 114px); }
+  .engine-display { inset: 0 0 19px; }
+  body[data-state="inspecting"] .part-caption { left: 3%; right: 3%; bottom: -5px; gap: 2px; }
+  .part-caption strong { font-size: 15px; }
+  .part-caption > span:first-child { font-size: 7px; }
+  .part-caption > span:last-child { display: none; }
+  .selector-controls { left: 4%; right: 4%; top: 39%; }
+  .selector-arrow { width: 36px; height: 36px; font-size: 17px; }
+  .component-nav { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: thin; bottom: calc(min(330px,40dvh) + 20px); gap: 3px; }
+  .component-nav button { font-size: 8px; white-space: nowrap; padding: 9px 8px; min-height: 32px; }
+  .component-nav button span { display: none; }
+  .drawing-meta { display: none; }
+  body[data-state="inspecting"] .drawing-meta { display: none; }
+}
+@media (max-height: 500px) and (min-width: 761px) {
+  .engine-display { inset: 15% 5% 20%; }
+  body[data-state="inspecting"] .part-caption { bottom: 16%; gap: 2px; }
+  .part-caption strong { font-size: 14px; }
+  .part-caption > span:last-child { display: none; }
+  .selector-controls { top: 38%; }
+  .selector-arrow { width: 32px; height: 32px; font-size: 15px; }
+  body[data-state="inspecting"] .scene-caption { display: none; }
+}

@@ -41,18 +41,22 @@
       </div>
       <section
         class="engine-stage"
-        aria-label="Side elevation of an inline-four engine"
+        aria-label="Ferrari 458-inspired naturally aspirated V8 engine"
       >
         <div class="drawing-meta">
-          <span>FIG. 01 / INLINE–FOUR</span
-          ><span>SIDE ELEVATION · KV–2026</span>
+          <span>FIG. 01 / NATURALLY ASPIRATED V8</span
+          ><span>4.5 L · FLAT-PLANE · 9,000 RPM</span>
         </div>
-        <svg
-          id="engine"
-          viewBox="0 0 1000 760"
-          role="group"
-          aria-label="Engine components"
-        ></svg>
+        <div id="engine" class="engine-display" role="img" aria-label="Detailed naturally aspirated V8 engine">
+          <img id="assembly" class="assembly" src="assets/engine/engine.webp" alt="Two banks of four cylinders, twin intake plenums, curved exhaust headers, and a longitudinal gearbox" width="1200" height="960" fetchpriority="high" draggable="false">
+          <div class="showroom-halo" aria-hidden="true"></div>
+          <div id="component-display" class="component-display" aria-hidden="true"></div>
+        </div>
+        <div id="selector-controls" class="selector-controls" hidden>
+          <button id="previous-part" class="selector-arrow" aria-label="Previous component">←</button>
+          <span id="selector-counter">01 / 08</span>
+          <button id="next-part" class="selector-arrow" aria-label="Next component">→</button>
+        </div>
         <div class="scene-caption">
           <span class="live-dot"></span
           ><span id="scene-status">SYSTEM OFFLINE</span
@@ -61,7 +65,7 @@
         <div class="part-caption" aria-hidden="true">
           <span id="part-number">01 / 08</span
           ><strong id="part-label">Spark plugs</strong
-          ><span>← INSPECT IN CONSOLE</span>
+          ><span id="part-spec">CERAMIC INSULATOR / THREADED STEEL SHELL</span>
         </div>
       </section>
       <section class="terminal" aria-labelledby="terminal-title">
