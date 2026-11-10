@@ -12,10 +12,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script src="mechanics.js" defer></script>
+    <script src="engine-drawing.js" defer></script>
     <script src="script.js" defer></script>
   </head>
   <body data-state="intro">
@@ -36,16 +38,16 @@
     <main id="experience" aria-label="Interactive engine portfolio">
       <div class="scene-heading" aria-hidden="true">
         <span>ANATOMY OF AN ENGINEER</span>
-        <h1>Built from curiosity.</h1>
-        <p>A little code. Eight cylinders. A lot of curiosity.</p>
+        <h1>A look under the hood.</h1>
+        <p>Engineering, software, and the work in between.</p>
       </div>
       <section
         class="engine-stage"
-        aria-label="Ferrari 458-inspired naturally aspirated V8 engine"
+        aria-label="C8 Z06 LT6-inspired naturally aspirated V8 cutaway"
       >
         <div class="drawing-meta">
-          <span>458-INSPIRED / NATURALLY ASPIRATED V8</span
-          ><span>4.5 L · FLAT-PLANE · 9,000 RPM</span>
+          <span>C8 Z06 / LT6 / NATURALLY ASPIRATED V8</span
+          ><span>5.5 L · FLAT-PLANE · 8,600 RPM</span>
         </div>
         <div
           id="engine"
@@ -53,16 +55,11 @@
           role="img"
           aria-label="Detailed naturally aspirated V8 engine"
         >
-          <img
+          <canvas
             id="assembly"
             class="assembly"
-            src="assets/engine/engine.webp"
-            alt="Two banks of four cylinders, twin intake plenums, curved exhaust headers, and a longitudinal gearbox"
-            width="1200"
-            height="960"
-            fetchpriority="high"
-            draggable="false"
-          />
+            aria-label="Eight exposed pistons and articulating rods; firing order 1-4-3-8-7-6-5-2"
+          ></canvas>
           <div class="showroom-halo" aria-hidden="true"></div>
           <div
             id="component-display"

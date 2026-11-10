@@ -1,4 +1,4 @@
-// Original, stylized F136-inspired NA V8 geometry. Generated offline only.
+// Simplified LT6-inspired component illustrations. Not factory CAD.
 // Coordinates: crankshaft along Z, two four-cylinder banks at +/-45 degrees.
 import * as T from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -16,15 +16,15 @@ const colors = {
 const mat = Object.fromEntries(
   Object.entries(colors).map(([name, color]) => [
     name,
-    new T.MeshStandardMaterial({ color, roughness: 0.69, metalness: 0.08 }),
+    new T.MeshBasicMaterial({ color: name === "accent" ? 0x244fba : 0x14171d }),
   ]),
 );
 const ink = new T.LineBasicMaterial({
-  color: 0x464e55,
+  color: 0xe2eaff,
   transparent: true,
-  opacity: 0.64,
+  opacity: 0.95,
 });
-const hull = new T.MeshBasicMaterial({ color: 0x4a5056, side: T.BackSide });
+const hull = new T.MeshBasicMaterial({ color: 0xb5c9ee, side: T.BackSide });
 const Y = new T.Vector3(0, 1, 0);
 const vec = (a) => new T.Vector3(...a);
 const zs = [-1.53, -0.51, 0.51, 1.53];
@@ -43,7 +43,7 @@ function mesh(
     object.add(new T.LineSegments(new T.EdgesGeometry(geometry, 32), ink));
   // Inverted surface hulls give curved parts their technical-illustration silhouette.
   const outline = new T.Mesh(geometry, hull);
-  outline.scale.setScalar(1.005);
+  outline.scale.setScalar(1.012);
   object.add(outline);
   return object;
 }
@@ -378,12 +378,23 @@ function headers() {
           [side * 1.93, 1.21, z],
           [side * (2.22 + i * 0.12), 0.72, z + 0.13],
           [side * (2.26 + i * 0.09), 0.07, z + 0.4],
-          [side * 2.19, -0.16, 2.4],
-          [side * 2.18, -0.16, 2.85],
+          [side * (i === 0 || i === 3 ? 2.02 : 2.38), -0.16, 2.2],
         ],
         0.135,
       );
     });
+    // Pair cylinders 360 crank degrees apart before the final collector.
+    for (const x of [2.02, 2.38]) {
+      tube(
+        g,
+        [
+          [side * x, -0.16, 2.2],
+          [side * x, -0.16, 2.5],
+          [side * 2.18, -0.16, 2.85],
+        ],
+        0.19,
+      );
+    }
     const collector = cyl(
       g,
       0.3,

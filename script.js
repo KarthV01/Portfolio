@@ -51,7 +51,7 @@ const parts = [
     name: "Exhaust headers",
     title: "Always exploring.",
     label: "06 / CURRENT DIRECTION",
-    spec: "NATURAL ASPIRATION / FOUR-INTO-ONE PER BANK",
+    spec: "NATURAL ASPIRATION / FOUR-INTO-TWO-INTO-ONE",
     html: "<p>I’m exploring adversarial multi-agent reinforcement learning, applied AI, and distributed infrastructure.</p><p>The questions that keep me building: how can intelligent systems coordinate reliably, reason over messy evidence, and hold up when things fail?</p>",
   },
   {
@@ -103,7 +103,7 @@ const commands = [
   {
     code: "engine.redline();",
     label: "See what’s inside",
-    rpm: 9000,
+    rpm: 8600,
     gear: "2",
     output: "[LIMITER] The interesting stuff is inside.",
   },
@@ -128,6 +128,17 @@ let transitionSerial = 0,
   activeCard = null,
   cardAnimations = [];
 const cachedImages = new Map();
+const assemblyDrawing = new EngineDrawing($("assembly"));
+let componentDrawing = null;
+function syncMechanisms() {
+  const animate = !reducedMotion.matches && !document.hidden;
+  assemblyDrawing.setSpeed(
+    animate && (state === "running" || state === "redlining")
+      ? 2.2 + targetRpm / 1800
+      : 0,
+  );
+  componentDrawing?.setSpeed(animate ? 2.8 : 0);
+}
 
 function loadImage(url) {
   if (!cachedImages.has(url)) {
@@ -144,7 +155,8 @@ function setState(next) {
   state = next;
   document.body.dataset.state = next;
   document.querySelector('meta[name="theme-color"]').content =
-    next === "inspecting" ? "#171d1c" : "#fafaf9";
+    next === "inspecting" ? "#14171d" : "#fafafc";
+  syncMechanisms();
 }
 function renderCommand() {
   const c = commands[step];
@@ -163,6 +175,7 @@ async function execute() {
   if (state === "intro") setState("running");
   ensureAudio();
   targetRpm = c.rpm;
+  syncMechanisms();
   startTelemetry();
   $("gear").textContent = c.gear;
   const entry = document.createElement("div");
@@ -178,7 +191,7 @@ async function execute() {
   $("command-line").hidden = true;
   if (step === 4) {
     setState("redlining");
-    $("scene-status").textContent = "REDLINE / 9,000 RPM";
+    $("scene-status").textContent = "REDLINE / 8,600 RPM";
     await wait(1100);
     if (token !== generation) return;
     burst();
@@ -257,6 +270,8 @@ function updateDescription(index, direction) {
   }
 }
 async function selectPart(index, direction = 1, initial = false) {
+  componentDrawing?.destroy();
+  componentDrawing = null;
   selected = (index + parts.length) % parts.length;
   const p = parts[selected],
     serial = ++transitionSerial;
@@ -264,7 +279,7 @@ async function selectPart(index, direction = 1, initial = false) {
   // Keep keyboard state, copy, and requested item synchronized under rapid input.
   updateDescription(selected, direction);
   const url = `assets/engine/${p.id}.webp`;
-  await loadImage(url);
+  if (!p.motion) await loadImage(url);
   if (serial !== transitionSerial || state !== "inspecting") return;
   cardAnimations.forEach((a) => a.cancel());
   cardAnimations = [];
@@ -284,8 +299,16 @@ async function selectPart(index, direction = 1, initial = false) {
   image.width = 1200;
   image.height = 960;
   image.draggable = false;
-  card.append(image);
+  if (!p.motion) card.append(image);
   $("component-display").append(card);
+  if (p.motion) {
+    const canvas = document.createElement("canvas");
+    canvas.className = "mechanism-canvas";
+    card.append(canvas);
+    card.classList.add("has-motion");
+    componentDrawing = new EngineDrawing(canvas, p.id);
+    syncMechanisms();
+  }
   activeCard = card;
   $("engine").dataset.active = p.id;
   $("engine").dataset.switching = "true";
@@ -330,28 +353,19 @@ async function selectPart(index, direction = 1, initial = false) {
     $("engine").dataset.switching = "false";
   }
   if (serial !== transitionSerial) return;
-  // Only selected mechanisms get a short, pre-rendered, ten-frame motion loop.
-  if (p.motion && !reducedMotion.matches) {
-    const spriteUrl = `assets/engine/${p.id}-motion.webp`;
-    await loadImage(spriteUrl);
-    if (serial !== transitionSerial || state !== "inspecting") return;
-    const sprite = document.createElement("div");
-    sprite.className = "mechanism-sprite";
-    sprite.style.backgroundImage = `url("${spriteUrl}")`;
-    card.append(sprite);
-    card.classList.add("has-motion");
-  }
   // Decode only immediate neighbors; no eager decoding of all motion strips.
-  for (const offset of [-1, 1])
-    loadImage(
-      `assets/engine/${parts[(selected + offset + parts.length) % parts.length].id}.webp`,
-    );
+  for (const offset of [-1, 1]) {
+    const neighbor = parts[(selected + offset + parts.length) % parts.length];
+    if (!neighbor.motion) loadImage(`assets/engine/${neighbor.id}.webp`);
+  }
 }
 function navigate(key) {
   const direction = key === "ArrowLeft" || key === "ArrowUp" ? -1 : 1;
   selectPart(selected + direction, direction);
 }
 function clearSelection() {
+  componentDrawing?.destroy();
+  componentDrawing = null;
   transitionSerial++;
   cardAnimations.forEach((a) => a.cancel());
   cardAnimations = [];
@@ -392,9 +406,9 @@ function replay() {
     "Detailed naturally aspirated V8 engine",
   );
   document.querySelector(".scene-heading h1").textContent =
-    "Built from curiosity.";
+    "A look under the hood.";
   document.querySelector(".scene-heading p").textContent =
-    "A little code. Eight cylinders. A lot of curiosity.";
+    "Engineering, software, and the work in between.";
   renderCommand();
   startTelemetry();
 }
@@ -611,6 +625,7 @@ $("engine").addEventListener(
   { passive: true },
 );
 document.addEventListener("visibilitychange", () => {
+  syncMechanisms();
   document.body.classList.toggle("is-background", document.hidden);
   if (document.hidden) {
     cancelAnimationFrame(telemetryFrame);

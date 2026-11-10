@@ -4,6 +4,34 @@ const http = require("node:http");
 const path = require("node:path");
 const os = require("node:os");
 const { chromium } = require("playwright");
+const mechanics = require("../mechanics.js");
+assert.deepEqual(mechanics.order, [1, 4, 3, 8, 7, 6, 5, 2]);
+// Independent geometric invariants: fixed rod length, 80-unit stroke,
+// and precisely one combustion TDC per cylinder over 720 degrees.
+for (let n = 1; n <= 8; n++) {
+  let min = Infinity,
+    max = -Infinity,
+    firingStarts = 0;
+  let wasFiring = mechanics.cylinder(n, -0.001).firing;
+  for (let degree = 0; degree < 720; degree++) {
+    const p = mechanics.cylinder(n, (degree * Math.PI) / 180);
+    assert.ok(
+      Math.abs(
+        Math.hypot(...p.wrist.map((v, i) => v - p.pin[i])) -
+          mechanics.rodLength,
+      ) < 1e-10,
+    );
+    const h = Math.hypot(p.wrist[0], p.wrist[1]);
+    min = Math.min(min, h);
+    max = Math.max(max, h);
+    if (p.firing && !wasFiring) firingStarts++;
+    wasFiring = p.firing;
+  }
+  assert.equal(firingStarts, 1);
+  assert.ok(Math.abs(max - min - 0.8) < 1e-10);
+  const tdc = mechanics.cylinder(n, (mechanics.order.indexOf(n) * Math.PI) / 2);
+  assert.ok(Math.abs(Math.hypot(tdc.wrist[0], tdc.wrist[1]) - 1.9) < 1e-10);
+}
 
 // Verify the shipped static site; offline rendering tools must never reach visitors.
 const root = path.resolve(__dirname, "..");
@@ -70,7 +98,14 @@ const server = http.createServer((req, res) => {
         () => !document.getElementById("execute").disabled,
       );
       if (step === 0) {
+        const before = await page
+          .locator("#assembly")
+          .getAttribute("data-phase");
         await page.waitForTimeout(900);
+        assert.notEqual(
+          await page.locator("#assembly").getAttribute("data-phase"),
+          before,
+        );
         await page.screenshot({
           path: path.join(artifacts, "desktop-running.png"),
         });
@@ -102,8 +137,8 @@ const server = http.createServer((req, res) => {
       );
       assert.equal(await page.locator(".component-card").count(), 1);
       if (i === 2 || i === 3) {
-        await page.waitForSelector(".mechanism-sprite");
-        assert.equal(await page.locator(".mechanism-sprite").count(), 1);
+        await page.waitForSelector(".mechanism-canvas");
+        assert.equal(await page.locator(".mechanism-canvas").count(), 1);
       }
       if ([1, 2, 5].includes(i)) {
         await page.screenshot({
@@ -130,7 +165,7 @@ const server = http.createServer((req, res) => {
         document.getElementById("engine").dataset.active === "block" &&
         document.getElementById("engine").dataset.switching === "false",
     );
-    assert.equal(await page.locator(".mechanism-sprite").count(), 0);
+    assert.equal(await page.locator(".mechanism-canvas").count(), 0);
     await page.waitForFunction(
       () => document.getElementById("rpm").textContent === "0000",
     );
@@ -236,7 +271,14 @@ const server = http.createServer((req, res) => {
     await reduced.waitForFunction(
       () => document.getElementById("engine").dataset.active === "pistons",
     );
-    assert.equal(await reduced.locator(".mechanism-sprite").count(), 0);
+    const stillPhase = await reduced
+      .locator(".mechanism-canvas")
+      .getAttribute("data-phase");
+    await reduced.waitForTimeout(150);
+    assert.equal(
+      await reduced.locator(".mechanism-canvas").getAttribute("data-phase"),
+      stillPhase,
+    );
     await reduced.close();
     assert.deepEqual(errors, []);
     console.log(

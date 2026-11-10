@@ -6,7 +6,7 @@ const renderer = new T.WebGLRenderer({
   antialias: true,
   preserveDrawingBuffer: true,
 });
-renderer.setSize(1200, 960);
+renderer.setSize(2400, 1920);
 renderer.setPixelRatio(1);
 renderer.setClearColor(0xffffff, 0);
 renderer.outputColorSpace = T.SRGBColorSpace;
@@ -35,7 +35,7 @@ window.setPart = (id) => {
   const size = bounds.getSize(new T.Vector3());
   // Almost level, oblique side view: enough depth to read both cylinder banks.
   const direction =
-    id === "spark" ? new T.Vector3(5, 1.8, 7) : new T.Vector3(7, 3.5, 8.5);
+    id === "spark" ? new T.Vector3(5, 1.8, 7) : new T.Vector3(9, 2.8, 6);
   camera.position.copy(center).add(direction);
   camera.lookAt(center);
   camera.updateMatrixWorld(true);
