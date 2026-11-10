@@ -5,13 +5,14 @@ const path = require("node:path");
 const os = require("node:os");
 const { chromium } = require("playwright");
 
-// Run with Playwright on NODE_PATH. No runtime dependencies or build step required.
+// Verify the shipped static site; offline rendering tools must never reach visitors.
 const root = path.resolve(__dirname, "..");
 const types = {
   ".html": "text/html",
   ".css": "text/css",
   ".js": "text/javascript",
   ".pdf": "application/pdf",
+  ".webp": "image/webp",
 };
 const server = http.createServer((req, res) => {
   const file = path.resolve(
@@ -40,6 +41,18 @@ const server = http.createServer((req, res) => {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 900 },
   });
+  await page.addInitScript(() => {
+    window.appFrameCount = 0;
+    const original = window.requestAnimationFrame;
+    window.requestAnimationFrame = function (callback) {
+      return original.call(window, (time) => {
+        window.appFrameCount++;
+        callback(time);
+      });
+    };
+  });
+  const requests = [];
+  page.on("request", (request) => requests.push(request.url()));
   page.on("pageerror", (e) => errors.push(e.message));
   const artifacts = path.join(os.tmpdir(), "kv-engine-verification");
   fs.mkdirSync(artifacts, { recursive: true });
@@ -69,6 +82,9 @@ const server = http.createServer((req, res) => {
     );
     assert.equal(await page.locator(".history-entry").count(), 5);
     await page.waitForTimeout(1600);
+    await page.waitForFunction(
+      () => document.getElementById("engine").dataset.switching === "false",
+    );
     await page.screenshot({
       path: path.join(artifacts, "desktop-exploded.png"),
     });
@@ -81,7 +97,59 @@ const server = http.createServer((req, res) => {
       assert.ok(
         (await page.locator("#inspection h2").textContent()).length > 5,
       );
+      await page.waitForFunction(
+        () => document.getElementById("engine").dataset.switching === "false",
+      );
+      assert.equal(await page.locator(".component-card").count(), 1);
+      if (i === 2 || i === 3) {
+        await page.waitForSelector(".mechanism-sprite");
+        assert.equal(await page.locator(".mechanism-sprite").count(), 1);
+      }
+      if ([1, 2, 5].includes(i)) {
+        await page.screenshot({
+          path: path.join(artifacts, `component-${i}.png`),
+        });
+      }
     }
+    // Rapid input must coalesce to the final selection without accumulating layers.
+    await page.locator('[data-part="0"]').click();
+    for (let i = 0; i < 11; i++) await page.keyboard.press("ArrowRight");
+    await page.waitForFunction(
+      () =>
+        document.getElementById("engine").dataset.active === "crank" &&
+        document.getElementById("engine").dataset.switching === "false",
+    );
+    assert.equal(await page.locator(".component-card").count(), 1);
+    assert.equal(
+      await page.locator('[data-part="3"]').getAttribute("aria-pressed"),
+      "true",
+    );
+    await page.locator("#next-part").click();
+    await page.waitForFunction(
+      () =>
+        document.getElementById("engine").dataset.active === "block" &&
+        document.getElementById("engine").dataset.switching === "false",
+    );
+    assert.equal(await page.locator(".mechanism-sprite").count(), 0);
+    await page.waitForFunction(
+      () => document.getElementById("rpm").textContent === "0000",
+    );
+    const idleFrames = await page.evaluate(async () => {
+      const start = window.appFrameCount;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return window.appFrameCount - start;
+    });
+    assert.equal(
+      idleFrames,
+      0,
+      "Static inspection should have no perpetual application render loop",
+    );
+    assert.ok(
+      !requests.some((url) =>
+        /three|render-scene|engine-model|esbuild/.test(url),
+      ),
+      "Offline renderer must not load in the portfolio",
+    );
     await page.locator('[data-part="6"]').click();
     await page.keyboard.press("ArrowUp");
     assert.notEqual(
@@ -109,6 +177,9 @@ const server = http.createServer((req, res) => {
     assert.equal(
       await page.locator("body").getAttribute("data-state"),
       "inspecting",
+    );
+    await page.waitForFunction(
+      () => document.getElementById("engine").dataset.switching === "false",
     );
     for (const viewport of [
       { width: 390, height: 844 },
@@ -161,10 +232,15 @@ const server = http.createServer((req, res) => {
       "inspecting",
     );
     assert.equal(await reduced.locator("#component-nav button").count(), 8);
+    await reduced.locator('[data-part="2"]').click();
+    await reduced.waitForFunction(
+      () => document.getElementById("engine").dataset.active === "pistons",
+    );
+    assert.equal(await reduced.locator(".mechanism-sprite").count(), 0);
     await reduced.close();
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: command sequence, components, keyboard, skip race, replay, returning visit, résumé, responsive layouts, reduced motion.",
+      "PASS: V8 command sequence, animated item switching, rapid input, bounded layers, idle render budget, no 3D runtime, keyboard, skip/replay, résumé, responsive layouts, reduced motion.",
     );
     console.log("Screenshots: " + artifacts);
   } finally {
