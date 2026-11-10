@@ -447,6 +447,64 @@ function tickTelemetry(time) {
   }
   if (rpm !== targetRpm) telemetryFrame = requestAnimationFrame(tickTelemetry);
 }
+let explosionVoice = null;
+function stopExplosionSound() {
+  explosionVoice?.stop();
+  explosionVoice = null;
+}
+function playExplosionSound() {
+  if (
+    !soundEnabled ||
+    document.hidden ||
+    !audioContext ||
+    audioContext.state !== "running"
+  )
+    return;
+  stopExplosionSound();
+  const now = audioContext.currentTime;
+  const duration = 0.8;
+  const buffer = audioContext.createBuffer(
+    1,
+    Math.ceil(audioContext.sampleRate * duration),
+    audioContext.sampleRate,
+  );
+  const samples = buffer.getChannelData(0);
+  // Original, crunchy voxel-style blast: coarse noise and a descending thump.
+  let noise = 0;
+  let phase = 0;
+  const hold = Math.max(1, Math.round(audioContext.sampleRate / 11025));
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / audioContext.sampleRate;
+    if (i % hold === 0) noise = Math.random() * 2 - 1;
+    phase +=
+      (2 * Math.PI * (38 + 100 * Math.exp(-t * 16))) / audioContext.sampleRate;
+    samples[i] =
+      noise * Math.exp(-t * 7) * 0.7 +
+      Math.sin(phase) * Math.exp(-t * 10) * 0.3;
+  }
+  const source = audioContext.createBufferSource();
+  const filter = audioContext.createBiquadFilter();
+  const envelope = audioContext.createGain();
+  source.buffer = buffer;
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(6500, now);
+  filter.frequency.exponentialRampToValueAtTime(180, now + duration);
+  envelope.gain.setValueAtTime(0, now);
+  envelope.gain.linearRampToValueAtTime(0.32, now + 0.004);
+  envelope.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  source.connect(filter);
+  filter.connect(envelope);
+  envelope.connect(audioContext.destination);
+  explosionVoice = source;
+  source.onended = () => {
+    source.disconnect();
+    filter.disconnect();
+    envelope.disconnect();
+    if (explosionVoice === source) explosionVoice = null;
+  };
+  source.start(now);
+  source.stop(now + duration);
+}
 function ensureAudio() {
   if (!soundEnabled) return;
   try {
@@ -481,6 +539,7 @@ function sizeCanvas() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 function clearParticles() {
+  stopExplosionSound();
   cancelAnimationFrame(particleFrame);
   particleFrame = 0;
   particles = [];
@@ -488,6 +547,7 @@ function clearParticles() {
 }
 function burst() {
   if (reducedMotion.matches) return;
+  playExplosionSound();
   sizeCanvas();
   const bounds = $("engine").getBoundingClientRect(),
     x = bounds.left + bounds.width / 2,
@@ -569,7 +629,10 @@ $("sound").addEventListener("click", () => {
   $("sound").textContent = soundEnabled ? "Sound on" : "Sound off";
   $("sound").setAttribute("aria-pressed", String(soundEnabled));
   if (soundEnabled) ensureAudio();
-  else if (gain) gain.gain.setTargetAtTime(0, audioContext.currentTime, 0.08);
+  else {
+    stopExplosionSound();
+    if (gain) gain.gain.setTargetAtTime(0, audioContext.currentTime, 0.08);
+  }
 });
 addEventListener("keydown", (e) => {
   if (

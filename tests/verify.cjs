@@ -301,6 +301,31 @@ const server = http.createServer((req, res) => {
       stillPhase,
     );
     await reduced.close();
+    const audioPage = await browser.newPage();
+    audioPage.on("pageerror", (e) => errors.push(e.message));
+    await audioPage.goto(url);
+    assert.equal(
+      await audioPage.evaluate(() => {
+        burst();
+        return explosionVoice === null;
+      }),
+      true,
+    );
+    await audioPage.locator("#sound").click();
+    await audioPage.waitForFunction(() => audioContext?.state === "running");
+    assert.equal(
+      await audioPage.evaluate(() => {
+        burst();
+        return explosionVoice !== null;
+      }),
+      true,
+    );
+    await audioPage.locator("#sound").click();
+    assert.equal(await audioPage.evaluate(() => explosionVoice === null), true);
+    await audioPage.locator("#sound").click();
+    await audioPage.evaluate(() => burst());
+    await audioPage.waitForFunction(() => explosionVoice === null);
+    await audioPage.close();
     assert.deepEqual(errors, []);
     console.log(
       "PASS: V8 command sequence, animated item switching, rapid input, bounded layers, idle render budget, no 3D runtime, keyboard, skip/replay, résumé, responsive layouts, reduced motion.",

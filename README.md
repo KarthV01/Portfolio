@@ -10,7 +10,7 @@ Open `index.html` directly, or serve this directory with any static HTTP server.
 - Escape skips ignition. Replay ignition is available afterward; R also replays when focus is outside a control.
 - Left/Up selects the previous component; Right/Down selects the next, wrapping at the ends. On-screen arrows, component tabs, and horizontal swipes provide equivalent controls.
 - Tab reaches component selectors and links. Enter/Space activates a focused button.
-- Sound is opt-in. The engine tone is synthesized locally with Web Audio.
+- Sound is opt-in. The engine tone and a short voxel-style explosion are synthesized locally with Web Audio. The explosion is an original effect, not a bundled Minecraft recording; it follows the pixel burst and stops immediately on mute, replay, skip, or a hidden tab.
 - Reduced-motion users start directly in inspection mode with immediate item changes and still mechanism images. Returning visits in the same tab also skip ignition.
 
 The document never scrolls. Long descriptions and project details scroll inside the console. On narrow screens the engine sits above the console.
